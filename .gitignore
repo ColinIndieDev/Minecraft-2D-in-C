@@ -9,3 +9,10 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps
+asan*.txt
+lsan*.txt
+ubsan*.txt
+.clang*
+.cache
+build
+example.cpp
