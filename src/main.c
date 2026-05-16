@@ -11,7 +11,7 @@
 #define CHUNK_SIZE 16
 #define MAX_CHUNK_HEIGHT 256
 
-#define MAP_SIZE 10000
+#define MAP_SIZE 1000 /* 10000 */
 
 #define MIN_TERRAIN_HEIGHT 40
 #define SEA_LEVEL 60
@@ -41,7 +41,7 @@ void gen_foliage(chunk *c, vec2f pos, fnl_state *terrain);
 void chunk_gen(chunk *c, vec2f pos, fnl_state *terrain);
 void chunk_draw(chunk *c) { cpl_tilemap_draw(&c->tiles); }
 
-void handle_cam();
+void handle_cam(chunk *c);
 void set_spawn_point(fnl_state *terrain);
 
 f32 cam_speed = 1000.0f;
@@ -62,8 +62,8 @@ MAIN_PROG main(void) {
     // Temporarily, but it actually does not suck, it generates fast + only ~3GB
     // which is lwk wild
     chunk c[MAP_SIZE];
-    for (i32 i = -MAP_SIZE / 2; i < (MAP_SIZE / 2) - 1; i++) {
-        chunk_gen(&c[i + (MAP_SIZE / 2)], VEC2F(i, 0), &noise);
+    for (i32 i = 0; i < MAP_SIZE; i++) {
+        chunk_gen(&c[i], VEC2F(i, 0), &noise);
     }
 
     set_spawn_point(&noise);
@@ -71,7 +71,7 @@ MAIN_PROG main(void) {
     while (!cpl_window_should_close()) {
         cpl_update();
 
-        handle_cam();
+        handle_cam(c);
 
         cpl_clear_background(LIGHT_BLUE);
 
@@ -109,11 +109,12 @@ void chunk_gen(chunk *c, vec2f pos, fnl_state *terrain) {
     cpl_tilemap_begin_editing(&c->tiles);
     for (u32 x = 0; x < CHUNK_SIZE; x++) {
         f32 noise =
-            (fnlGetNoise2D(terrain, (f32)((u32)((pos.x + (MAP_SIZE / 2)) * CHUNK_SIZE) + x), 0) +
+            (fnlGetNoise2D(terrain, (f32)((u32)(pos.x * CHUNK_SIZE) + x), 0) +
              1.0f) *
             0.5f;
         u32 height = MIN_TERRAIN_HEIGHT +
                      (noise * (MAX_FIELD_HEIGHT - MIN_TERRAIN_HEIGHT));
+        u32 bedrock_height = cprng_rand_range(1, 6);
         for (u32 y = 0; y < height; y++) {
             vec2f uv;
             if (y == height - 1) {
@@ -135,7 +136,7 @@ void chunk_gen(chunk *c, vec2f pos, fnl_state *terrain) {
                 } else {
                     uv = BLOCK_DIRT;
                 }
-            } else if (y == 0) {
+            } else if (y < bedrock_height) {
                 uv = BLOCK_BEDROCK;
             } else {
                 uv = BLOCK_STONE;
@@ -155,7 +156,7 @@ void chunk_gen(chunk *c, vec2f pos, fnl_state *terrain) {
 void gen_foliage(chunk *c, vec2f pos, fnl_state *terrain) {
     for (u32 x = 0; x < CHUNK_SIZE; x++) {
         f32 noise =
-            (fnlGetNoise2D(terrain, (f32)((u32)((pos.x + (MAP_SIZE / 2)) * CHUNK_SIZE) + x), 0) +
+            (fnlGetNoise2D(terrain, (f32)((u32)(pos.x * CHUNK_SIZE) + x), 0) +
              1.0f) *
             0.5f;
         u32 height = MIN_TERRAIN_HEIGHT +
@@ -213,7 +214,7 @@ void gen_tree(chunk *c, vec2f pos, u32 x) {
 void gen_trees(chunk *c, vec2f pos, fnl_state *terrain) {
     for (u32 x = 0; x < CHUNK_SIZE; x++) {
         f32 noise =
-            (fnlGetNoise2D(terrain, (f32)((u32)((pos.x + (MAP_SIZE / 2)) * CHUNK_SIZE) + x), 0) +
+            (fnlGetNoise2D(terrain, (f32)((u32)(pos.x * CHUNK_SIZE) + x), 0) +
              1.0f) *
             0.5f;
         u32 height = MIN_TERRAIN_HEIGHT +
@@ -225,7 +226,7 @@ void gen_trees(chunk *c, vec2f pos, fnl_state *terrain) {
     }
 }
 
-void handle_cam() {
+void handle_cam(chunk *c) {
     if (cpl_is_key_down(KEY_W)) {
         cpl_get_cam_2D()->pos.y -= cam_speed * cpl_get_dt();
     }
@@ -257,6 +258,23 @@ void handle_cam() {
         cpl_get_cam_2D()->zoom -= 2 * cpl_get_dt();
     }
     cpl_get_cam_2D()->zoom = CPM_CLAMP(cpl_get_cam_2D()->zoom, 0.01f, 10);
+
+    if (cpl_is_mouse_down(MOUSE_BUTTON_LEFT)) {
+        vec2f mouse_pos = cpl_get_screen_to_world_2D(cpl_get_mouse_pos());
+        if (mouse_pos.x < 0 || mouse_pos.x > MAP_SIZE * CHUNK_SIZE * BLOCK_SIZE) {
+            return;
+        }
+        u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
+        for (i32 i = -1; i < 2; i++) {
+            if (idx == 0 && i == -1) {
+                continue;
+            }
+            cpl_tilemap_delete_tile(
+                &c[idx + i].tiles,
+                VEC2F((i32)mouse_pos.x - ((i32)mouse_pos.x % BLOCK_SIZE),
+                      (i32)mouse_pos.y - ((i32)mouse_pos.y % BLOCK_SIZE)));
+        }
+    }
 }
 
 void set_spawn_point(fnl_state *terrain) {
