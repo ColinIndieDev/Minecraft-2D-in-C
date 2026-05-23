@@ -118,8 +118,9 @@ endforeach()
 message(STATUS "============================================")
 
 add_executable(${CMAKE_PROJECT_NAME}
-    external/fastnoiselite/FastNoiseLite.h
-    ${SOURCE_FILES}
+    src/main.c
+    src/chunk.c
+    src/player.c
 )
 
 # OpenMP, pthread, GLFW, GLAD, STB & FT
