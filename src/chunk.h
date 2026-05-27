@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cpl/cpl.h>
 #include "noise.h"
+#include <cpl/cpl.h>
 
 #define CHUNK_SIZE 16
 #define MAX_CHUNK_HEIGHT 256
@@ -20,9 +20,18 @@ typedef struct {
     tilemap tiles;
     tilemap tiles_passable;
 } chunk;
-void gen_tree(chunk *c, vec2f pos, u32 x);
-void gen_trees(chunk *c, vec2f pos, fnl_state *terrain);
-void gen_foliage(chunk *c, vec2f pos, fnl_state *terrain);
-void chunk_gen(chunk *c, vec2f pos, fnl_state *terrain);
+
+typedef struct {
+    fnl_state terrain;
+} map_noise_t;
+
+void gen_seed(map_noise_t *map_noise);
+void gen_tree(chunk *c, vec2f pos, u32 x, vec2f *block_types_uv);
+void gen_trees(chunk *c, vec2f pos, map_noise_t *map_noise,
+               vec2f *block_types_uv);
+void gen_foliage(chunk *c, vec2f pos, map_noise_t *map_noise,
+                 vec2f *block_types_uv);
+void chunk_gen(chunk *c, vec2f pos, map_noise_t *map_noise,
+               vec2f *block_types_uv);
 void chunk_draw(chunk *c);
 void chunk_draw_passable(chunk *c);

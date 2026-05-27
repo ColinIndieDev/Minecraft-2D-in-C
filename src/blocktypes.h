@@ -1,12 +1,17 @@
 #pragma once
 
-#define BLOCK_GRASS_BLOCK VEC2F(1, 0)
-#define BLOCK_DIRT VEC2F(0, 0)
-#define BLOCK_STONE VEC2F(2, 0)
-#define BLOCK_SAND VEC2F(0, 1)
-#define BLOCK_BEDROCK VEC2F(1, 1)
-#define BLOCK_WATER VEC2F(2, 1)
-#define BLOCK_FLOWER_ROSE VEC2F(0, 2)
-#define BLOCK_SUGAR_CANE VEC2F(1, 2)
-#define BLOCK_OAK_LOG VEC2F(3, 0)
-#define BLOCK_OAK_LEAVES VEC2F(3, 1)
+#include <cpl/cpl.h>
+
+typedef enum {
+    BLOCK_GRASS_BLOCK,
+    BLOCK_DIRT,
+    BLOCK_STONE,
+    BLOCK_SAND,
+    BLOCK_BEDROCK,
+    BLOCK_WATER,
+    BLOCK_FLOWER_ROSE,
+    BLOCK_SUGAR_CANE,
+    BLOCK_OAK_LOG,
+    BLOCK_OAK_LEAVES,
+    BLOCK_TYPES
+} block_types;
