@@ -1,25 +1,31 @@
 #include "player.h"
-#include "blocktypes.h"
+#include "blocks.h"
 #include "chunk.h"
+#include "items.h"
+#include <cpstd/cpvec.h>
+#include <stdio.h>
+#ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
+#endif
+#ifdef __EMSCRIPTEN__
+#include "../cpstd/cpmath.h"
+#include "../external/cpl.h"
+#endif
 
 void draw_player(player_t *player) {
     draw_rect(player->pos, player->size, RED, 0);
 }
 
-i32 get_block_type_id(vec2f uv, vec2f *block_types_uv) {
+i32 get_block_type_id(vec2f uv, block_data_t *block_data) {
     for (i32 i = 0; i < BLOCK_TYPES; i++) {
-        if (vec2f_cmp(uv, block_types_uv[i])) {
+        if (vec2f_cmp(uv, block_data[i].uv)) {
             return i;
         }
     }
     return -1;
 }
 
-void handle_controls(player_t *player, chunk *chunks, vec2f *block_types_uv,
-                     f32 *block_types_mining_dt) {
-    get_cam_2D()->pos = VEC2F(player->pos.x - (get_screen_width() * 0.5f),
-                              player->pos.y - (get_screen_height() * 0.5f));
+void handle_movement(player_t *player) {
     if (is_key_down(KEY_A)) {
         player->vel.x = -player->move_speed;
     } else if (is_key_down(KEY_D)) {
@@ -36,30 +42,52 @@ void handle_controls(player_t *player, chunk *chunks, vec2f *block_types_uv,
         player->vel.y = player->max_fall_speed;
     }
 
-    if (is_key_down(KEY_ESCAPE)) {
-        destroy_window();
-    }
-
-    if (is_key_down(KEY_G)) {
-        player->move_speed += player->move_speed * 10 * get_dt();
-    }
-    if (is_key_down(KEY_B)) {
-        player->move_speed -= player->move_speed * 10 * get_dt();
+    if (is_key_down(KEY_LEFT_SHIFT)) {
+        player->move_speed = PLAYER_BASE_SPEED * 2;
+    } else {
+        player->move_speed = PLAYER_BASE_SPEED;
     }
     player->move_speed = CPM_CLAMP(player->move_speed, 10, 1000000);
+}
 
-    if (is_key_down(KEY_H)) {
-        get_cam_2D()->zoom += 2 * get_dt();
+i32 item_id_to_block_id(i32 item_id) {
+    switch (item_id) {
+    case ITEM_GRASS_BLOCK:
+        return BLOCK_GRASS_BLOCK;
+        break;
+    case ITEM_DIRT:
+        return BLOCK_DIRT;
+        break;
+    case ITEM_STONE:
+        return BLOCK_STONE;
+        break;
+    case ITEM_SAND:
+        return BLOCK_SAND;
+        break;
+    case ITEM_BEDROCK:
+        return BLOCK_BEDROCK;
+        break;
+    case ITEM_FLOWER_ROSE:
+        return BLOCK_FLOWER_ROSE;
+        break;
+    case ITEM_SUGAR_CANE:
+        return BLOCK_SUGAR_CANE;
+        break;
+    case ITEM_OAK_LOG:
+        return BLOCK_OAK_LOG;
+        break;
+    case ITEM_OAK_LEAVES:
+        return BLOCK_OAK_LEAVES;
+        break;
+    default:
+        return -1;
     }
-    if (is_key_down(KEY_N)) {
-        get_cam_2D()->zoom -= 2 * get_dt();
-    }
-    get_cam_2D()->zoom = CPM_CLAMP(get_cam_2D()->zoom, 0.01f, 10);
+    return -1;
+}
 
-    vec2f mouse_pos = get_screen_to_world_2D(get_mouse_pos());
-    vec2f mouse_pos_tilemap =
-        VEC2F((i32)mouse_pos.x - ((i32)mouse_pos.x % BLOCK_SIZE),
-              (i32)mouse_pos.y - ((i32)mouse_pos.y % BLOCK_SIZE));
+void handle_block_placing(player_t *player, vec2f mouse_pos,
+                          vec2f mouse_pos_tilemap, chunk *chunks,
+                          block_data_t *block_data) {
     if (is_mouse_pressed(MOUSE_BUTTON_RIGHT)) {
         if (mouse_pos.x < 0 ||
             mouse_pos.x > MAP_SIZE * CHUNK_SIZE * BLOCK_SIZE) {
@@ -70,17 +98,115 @@ void handle_controls(player_t *player, chunk *chunks, vec2f *block_types_uv,
                                          .size = player->size};
         rect_collider tile_collider = {.pos = mouse_pos_tilemap,
                                        .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)};
+
+        vec2f neighbor_blocks[4] = {
+            {mouse_pos_tilemap.x + BLOCK_SIZE, mouse_pos_tilemap.y},
+            {mouse_pos_tilemap.x - BLOCK_SIZE, mouse_pos_tilemap.y},
+            {mouse_pos_tilemap.x, mouse_pos_tilemap.y + BLOCK_SIZE},
+            {mouse_pos_tilemap.x, mouse_pos_tilemap.y - BLOCK_SIZE}};
+        b8 neighbor_blocks_exist = false;
+        for (i32 c = -1; c < 2; c++) {
+            if (c == -1 && idx == 0) {
+                continue;
+            }
+            if (c == 1 && idx == MAP_SIZE - 1) {
+                continue;
+            }
+            for (u32 i = 0; i < 4; i++) {
+                if (tilemap_tile_exists(&chunks[idx + c].tiles,
+                                        neighbor_blocks[i])) {
+                    neighbor_blocks_exist = true;
+                    break;
+                }
+            }
+        }
+        i32 block_id =
+            item_id_to_block_id(player->hotbar[player->hotbar_selected].item);
         if (!check_collision_rects(player_collider, tile_collider) &&
             !tilemap_tile_exists(&chunks[idx].tiles, mouse_pos_tilemap) &&
-            !tilemap_tile_exists(&chunks[idx].tiles_passable,
-                                 mouse_pos_tilemap)) {
-            tilemap_add_tile(&chunks[idx].tiles, mouse_pos_tilemap,
-                             VEC2F(BLOCK_SIZE, BLOCK_SIZE),
-                             block_types_uv[BLOCK_DIRT]);
-            tilemap_check_collidable_tiles(&chunks[idx].tiles,
-                                           VEC2F(BLOCK_SIZE, BLOCK_SIZE));
+            neighbor_blocks_exist && block_id != -1 &&
+            player->hotbar[player->hotbar_selected].count > 0) {
+            vec2f uv;
+            if (tilemap_tile_exists(&chunks[idx].tiles_passable,
+                                    mouse_pos_tilemap)) {
+                uv = tilemap_get_tile_uv(&chunks[idx].tiles_passable,
+                                         mouse_pos_tilemap);
+                if (vec2f_cmp(uv, block_data[BLOCK_WATER].uv) &&
+                    !block_passable(block_id)) {
+                    tilemap_delete_tile(&chunks[idx].tiles_passable,
+                                        mouse_pos_tilemap);
+                    tilemap_add_tile(&chunks[idx].tiles, mouse_pos_tilemap,
+                                     VEC2F(BLOCK_SIZE, BLOCK_SIZE),
+                                     block_data[block_id].uv);
+                    tilemap_check_collidable_tiles(
+                        &chunks[idx].tiles, VEC2F(BLOCK_SIZE, BLOCK_SIZE));
+
+                    player->hotbar[player->hotbar_selected].count--;
+                    if (player->hotbar[player->hotbar_selected].count == 0) {
+                        player->hotbar[player->hotbar_selected].item =
+                            ITEM_NONE;
+                    }
+                }
+            } else {
+                if (block_passable(block_id)) {
+                    tilemap_add_tile(
+                        &chunks[idx].tiles_passable, mouse_pos_tilemap,
+                        VEC2F(BLOCK_SIZE, BLOCK_SIZE), block_data[block_id].uv);
+                } else {
+                    tilemap_add_tile(&chunks[idx].tiles, mouse_pos_tilemap,
+                                     VEC2F(BLOCK_SIZE, BLOCK_SIZE),
+                                     block_data[block_id].uv);
+                    tilemap_check_collidable_tiles(
+                        &chunks[idx].tiles, VEC2F(BLOCK_SIZE, BLOCK_SIZE));
+                }
+
+                player->hotbar[player->hotbar_selected].count--;
+                if (player->hotbar[player->hotbar_selected].count == 0) {
+                    player->hotbar[player->hotbar_selected].item = ITEM_NONE;
+                }
+            }
         }
     }
+}
+
+i32 block_id_to_item_id(i32 block_id) {
+    switch (block_id) {
+    case BLOCK_GRASS_BLOCK:
+        return ITEM_GRASS_BLOCK;
+        break;
+    case BLOCK_DIRT:
+        return ITEM_DIRT;
+        break;
+    case BLOCK_STONE:
+        return ITEM_STONE;
+        break;
+    case BLOCK_SAND:
+        return ITEM_SAND;
+        break;
+    case BLOCK_BEDROCK:
+        return ITEM_BEDROCK;
+        break;
+    case BLOCK_FLOWER_ROSE:
+        return ITEM_FLOWER_ROSE;
+        break;
+    case BLOCK_SUGAR_CANE:
+        return ITEM_SUGAR_CANE;
+        break;
+    case BLOCK_OAK_LOG:
+        return ITEM_OAK_LOG;
+        break;
+    case BLOCK_OAK_LEAVES:
+        return ITEM_OAK_LEAVES;
+        break;
+    default:
+        return -1;
+    }
+    return -1;
+}
+
+void handle_block_breaking(player_t *player, vec2f mouse_pos,
+                           vec2f mouse_pos_tilemap, chunk *chunks,
+                           block_data_t *block_data, vec_item_drop *drops) {
     if (is_mouse_released(MOUSE_BUTTON_LEFT)) {
         player->block_mining = VEC2F(-1, -1);
         player->block_mining_dt = 0.0f;
@@ -90,31 +216,39 @@ void handle_controls(player_t *player, chunk *chunks, vec2f *block_types_uv,
             mouse_pos.x > MAP_SIZE * CHUNK_SIZE * BLOCK_SIZE) {
             return;
         }
+        u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
+        vec2f uv;
+        if (tilemap_tile_exists(&chunks[idx].tiles_passable,
+                                mouse_pos_tilemap)) {
+            uv = tilemap_get_tile_uv(&chunks[idx].tiles_passable,
+                                     mouse_pos_tilemap);
+        } else if (tilemap_tile_exists(&chunks[idx].tiles, mouse_pos_tilemap)) {
+            uv = tilemap_get_tile_uv(&chunks[idx].tiles, mouse_pos_tilemap);
+        }
+        i32 block_id = get_block_type_id(uv, block_data);
+
         if (!vec2f_cmp(mouse_pos_tilemap, player->block_mining)) {
             player->block_mining = mouse_pos_tilemap;
             player->block_mining_timer = get_time();
-            u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
-            vec2f uv;
-            if (tilemap_tile_exists(&chunks[idx].tiles_passable,
-                                    mouse_pos_tilemap)) {
-                uv = tilemap_get_tile_uv(&chunks[idx].tiles_passable,
-                                         mouse_pos_tilemap);
-            } else if (tilemap_tile_exists(&chunks[idx].tiles,
-                                           mouse_pos_tilemap)) {
-                uv = tilemap_get_tile_uv(&chunks[idx].tiles, mouse_pos_tilemap);
-            }
-            i32 block_id = get_block_type_id(uv, block_types_uv);
-            if (block_id == -1 || block_id == BLOCK_BEDROCK ||
-                block_id == BLOCK_WATER) {
+
+            if (block_id == -1 || block_data[block_id].unbreakable) {
                 player->block_mining = VEC2F(-1, -1);
                 player->block_mining_dt = 0.0f;
             } else {
-                player->block_mining_dt = block_types_mining_dt[block_id];
+                player->block_mining_dt = block_data[block_id].base_mining_dt;
             }
         } else if (player->block_mining_timer + player->block_mining_dt <=
                        get_time() &&
                    !vec2f_cmp(player->block_mining, VEC2F(-1, -1))) {
-            u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
+            i32 item_id = block_id_to_item_id(block_id);
+            if (item_id != -1 && item_id != ITEM_OAK_LEAVES) {
+                vec_item_drop_push_back(drops, (item_drop){});
+                if (item_id == ITEM_GRASS_BLOCK) {
+                    drop_item(vec_item_drop_back(drops), mouse_pos, ITEM_DIRT);
+                } else {
+                    drop_item(vec_item_drop_back(drops), mouse_pos, item_id);
+                }
+            }
 
             tilemap_delete_tile(&chunks[idx].tiles, mouse_pos_tilemap);
             tilemap_check_collidable_tiles(&chunks[idx].tiles,
@@ -125,6 +259,111 @@ void handle_controls(player_t *player, chunk *chunks, vec2f *block_types_uv,
             player->block_mining_timer = 0.0f;
         }
     }
+}
+
+void handle_item_drops(vec_item_drop *drops, vec2f mouse_pos,
+                       player_t *player) {
+    if (is_key_pressed(KEY_Q)) {
+        vec_item_drop_push_back(drops, (item_drop){});
+        drop_item(vec_item_drop_back(drops), mouse_pos, ITEM_DIRT);
+    }
+
+    // TODO if hotbar is full, dropped item still gets destroyed
+    u32 w = 0;
+    for (u32 i = 0; i < drops->size; i++) {
+        item_drop drop = drops->data[i];
+        rect_collider drop_collider = {.pos = drop.pos, .size = drop.size};
+        rect_collider player_collider = {.pos = player->pos,
+                                         .size = player->size};
+
+        if (!check_collision_rects(player_collider, drop_collider)) {
+            drops->data[w++] = drops->data[i];
+        } else {
+            b8 found_stackable = false;
+            for (u32 i = 0; i < 9; i++) {
+                item_types type = drop.type;
+                if (player->hotbar[i].item == type &&
+                    player->hotbar[i].count < MAX_STACK_SIZE) {
+                    player->hotbar[i].count++;
+                    found_stackable = true;
+                    break;
+                }
+            }
+            if (!found_stackable) {
+                for (u32 i = 0; i < 9; i++) {
+                    item_types type = drop.type;
+                    if (player->hotbar[i].item == ITEM_NONE &&
+                        player->hotbar[i].count == 0) {
+                        player->hotbar[i].item = type;
+                        player->hotbar[i].count++;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    drops->size = w;
+}
+
+void handle_controls(player_t *player, chunk *chunks, block_data_t *block_data,
+                     vec_item_drop *drops) {
+    get_cam_2D()->pos = VEC2F(
+        player->pos.x - (get_screen_width() * (1 / get_cam_2D()->zoom) * 0.5f),
+        player->pos.y -
+            (get_screen_height() * (1 / get_cam_2D()->zoom) * 0.5f));
+    if (is_key_down(KEY_H)) {
+        get_cam_2D()->zoom += 2 * get_dt();
+    }
+    if (is_key_down(KEY_N)) {
+        get_cam_2D()->zoom -= 2 * get_dt();
+    }
+    get_cam_2D()->zoom = CPM_CLAMP(get_cam_2D()->zoom, 0.01f, 10);
+
+    if (is_key_down(KEY_ESCAPE)) {
+        destroy_window();
+    }
+
+    if (is_key_down(KEY_1)) {
+        player->hotbar_selected = 0;
+    }
+    if (is_key_down(KEY_2)) {
+        player->hotbar_selected = 1;
+    }
+    if (is_key_down(KEY_3)) {
+        player->hotbar_selected = 2;
+    }
+    if (is_key_down(KEY_4)) {
+        player->hotbar_selected = 3;
+    }
+    if (is_key_down(KEY_5)) {
+        player->hotbar_selected = 4;
+    }
+    if (is_key_down(KEY_6)) {
+        player->hotbar_selected = 5;
+    }
+    if (is_key_down(KEY_7)) {
+        player->hotbar_selected = 6;
+    }
+    if (is_key_down(KEY_8)) {
+        player->hotbar_selected = 7;
+    }
+    if (is_key_down(KEY_9)) {
+        player->hotbar_selected = 8;
+    }
+
+    handle_movement(player);
+
+    vec2f mouse_pos = get_screen_to_world_2D(get_mouse_pos());
+    vec2f mouse_pos_tilemap =
+        VEC2F((i32)mouse_pos.x - ((i32)mouse_pos.x % BLOCK_SIZE),
+              (i32)mouse_pos.y - ((i32)mouse_pos.y % BLOCK_SIZE));
+
+    handle_block_placing(player, mouse_pos, mouse_pos_tilemap, chunks,
+                         block_data);
+    handle_block_breaking(player, mouse_pos, mouse_pos_tilemap, chunks,
+                          block_data, drops);
+
+    handle_item_drops(drops, mouse_pos, player);
 }
 
 void move_and_collide(player_t *player, chunk *chunks) {
@@ -205,8 +444,8 @@ void move_and_collide(player_t *player, chunk *chunks) {
                 } else if (player->vel.y < 0) {
                     player->pos.y = tile_pos.y + BLOCK_SIZE +
                                     0.1f; // Prevent glitching through
-                                          // blocks if jumping into them below
-                                          // by slightly offsetting
+                                          // blocks if jumping into them
+                                          // below by slightly offsetting
                 }
                 player->vel.y = 0;
             }
@@ -220,4 +459,62 @@ void set_spawn_point(player_t *player, fnl_state *terrain) {
     u32 height =
         MIN_TERRAIN_HEIGHT + (noise * (MAX_FIELD_HEIGHT - MIN_TERRAIN_HEIGHT));
     player->pos.y = (f32)(MAX_CHUNK_HEIGHT - height) * BLOCK_SIZE;
+}
+
+void draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
+              texture *item_textures, font *f) {
+    begin_draw(TEXTURE_2D_UNLIT, false);
+
+    vec2f size = VEC2F(hotbar->size.x * 4, hotbar->size.y * 4);
+    f32 offset_y = 20.0f;
+    draw_texture2D(hotbar,
+                   VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f),
+                         get_screen_height() - size.y - offset_y),
+                   size, WHITE, 0);
+
+    vec2f arrow_size =
+        VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
+    draw_texture2D(
+        hotbar_arrow,
+        VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f) +
+                  ((arrow_size.x - (4 * 4)) * player->hotbar_selected) - 4,
+              get_screen_height() - size.y - offset_y - 4),
+        arrow_size, WHITE, 0);
+
+    for (u32 i = 0; i < 9; i++) {
+        vec2f slot_pos = VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f) +
+                                   ((arrow_size.x - (4 * 4)) * i) - 4,
+                               get_screen_height() - size.y - offset_y - 4);
+        if (player->hotbar[i].count == 0 ||
+            player->hotbar[i].item == ITEM_NONE) {
+            continue;
+        }
+        vec2f item_size =
+            VEC2F(item_textures[player->hotbar[i].item].size.x * 4,
+                  item_textures[player->hotbar[i].item].size.y * 4);
+        draw_texture2D(
+            &item_textures[player->hotbar[i].item],
+            VEC2F(slot_pos.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f),
+                  slot_pos.y + (arrow_size.y * 0.5f) - (item_size.y * 0.5f)),
+            item_size, WHITE, 0);
+    }
+
+    begin_draw(TEXT, false);
+
+    for (u32 i = 0; i < 9; i++) {
+        vec2f slot_pos = VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f) +
+                                   ((arrow_size.x - (4 * 4)) * i) - 4,
+                               get_screen_height() - size.y - offset_y - 4);
+        if (player->hotbar[i].count <= 1 ||
+            player->hotbar[i].item == ITEM_NONE) {
+            continue;
+        }
+
+        char number[3];
+        snprintf(number, 3, "%d", player->hotbar[i].count);
+        draw_text_shadow(f, number,
+                         VEC2F(slot_pos.x + arrow_size.x - (9 * 4),
+                               slot_pos.y + arrow_size.y - (9 * 4)),
+                         0.7f, WHITE, VEC2F(4, 4), BLACK);
+    }
 }

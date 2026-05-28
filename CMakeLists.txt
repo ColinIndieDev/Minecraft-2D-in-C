@@ -104,23 +104,12 @@ endif()
 
 #### Linking ####
 
-# Is used here but normally never do 
-# it name the files manually
-
-file(GLOB_RECURSE SOURCE_FILES CONFIGURE DEPENDS src/*.c src/*.h)
-message(STATUS "============================================")
-message(STATUS "Included files")
-message(STATUS "============================================")
-foreach(f IN LISTS SOURCE_FILES)
-    file(RELATIVE_PATH rel ${CMAKE_SOURCE_DIR} ${f})
-    message(STATUS "    ${rel}")
-endforeach()
-message(STATUS "============================================")
-
 add_executable(${CMAKE_PROJECT_NAME}
     src/main.c
     src/chunk.c
     src/player.c
+    src/items.c
+    src/blocks.c
 )
 
 # OpenMP, pthread, GLFW, GLAD, STB & FT
@@ -153,7 +142,8 @@ if (EMSCRIPTEN)
     target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
         "SHELL:--preload-file ${ASSETS_DIR}@/assets"
         "SHELL:--preload-file ${SHADERS_DIR}@/shaders"
-        "SHELL:--preload-file ${SHADERS_CUSTOM_DIR}@/shaders_custom"
+        # "SHELL:--preload-file ${SHADERS_CUSTOM_DIR}@/shaders_custom"
+        "-sSTACK_SIZE=8mb"
 	    "-sMIN_WEBGL_VERSION=2"
 	    "-sMAX_WEBGL_VERSION=2"
         "-sUSE_GLFW=3"
