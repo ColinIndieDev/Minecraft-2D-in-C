@@ -115,8 +115,6 @@ void init() {
         player.hotbar[i] = (slot){ITEM_NONE, 0};
     }
 
-    player.hotbar[2] = (slot){ITEM_SUGAR_CANE, 3};
-
     // Temporarily, but it actually does not suck
     for (u32 i = 0; i < MAP_SIZE; i++) {
         chunk_gen(&c[i], VEC2F(i, 0), &map_noise, block_data);
