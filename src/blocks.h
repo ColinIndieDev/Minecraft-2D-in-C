@@ -2,8 +2,7 @@
 
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
-#endif
-#ifdef __EMSCRIPTEN__
+#else
 #include "../external/cpl.h"
 #endif
 
@@ -18,6 +17,12 @@ typedef enum {
     BLOCK_SUGAR_CANE,
     BLOCK_OAK_LOG,
     BLOCK_OAK_LEAVES,
+    BLOCK_GRAVEL,
+    BLOCK_COBBLESTONE,
+    BLOCK_OAK_PLANKS,
+    BLOCK_COAL_ORE,
+    BLOCK_IRON_ORE,
+    BLOCK_DIAMOND_ORE,
     BLOCK_TYPES
 } block_types;
 
@@ -25,6 +30,5 @@ typedef struct {
     vec2f uv;
     f32 base_mining_dt;
     b8 unbreakable;
+    b8 passable;
 } block_data_t;
-
-b8 block_passable(block_types type);

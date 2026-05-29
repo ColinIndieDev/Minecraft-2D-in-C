@@ -109,7 +109,6 @@ add_executable(${CMAKE_PROJECT_NAME}
     src/chunk.c
     src/player.c
     src/items.c
-    src/blocks.c
 )
 
 # OpenMP, pthread, GLFW, GLAD, STB & FT

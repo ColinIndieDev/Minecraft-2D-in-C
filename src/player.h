@@ -5,6 +5,15 @@
 
 #define PLAYER_BASE_SPEED 250.0f
 #define MAX_STACK_SIZE 64
+#define MINE_AND_PLACE_RANGE 5
+
+#define ICON_PIXEL_SIZE 9
+#define ICON_HEART_BG VEC2F(0, 0)
+#define ICON_HEART VEC2F(1, 0)
+#define ICON_HEART_HALF VEC2F(2, 0)
+#define ICON_HUNGER_BG VEC2F(0, 3)
+#define ICON_HUNGER VEC2F(1, 3)
+#define ICON_HUNGER_HALF VEC2F(2, 3)
 
 typedef struct {
     item_types item;
@@ -25,6 +34,10 @@ typedef struct {
     f32 block_mining_timer;
     slot hotbar[9];
     u32 hotbar_selected;
+    f32 health;
+    f32 hunger;
+    tilemap status_icons_bg;
+    tilemap status_icons;
 } player_t;
 
 void handle_controls(player_t *player, chunk *chunks, block_data_t *block_data,

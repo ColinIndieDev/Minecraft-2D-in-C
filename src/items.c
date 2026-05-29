@@ -1,10 +1,6 @@
 #include "items.h"
-#include <cpl/cpl.h>
-#include <cpstd/cpmath.h>
 
-#define MAX_ANIM_OFFSET 10
-
-void drop_item(item_drop *drop, vec2f pos, item_types type) {
+void drop_item(item_drop *drop, item_types type, vec2f pos) {
     drop->collider_pos = pos;
     drop->collider_size = VEC2F(50, 50);
     drop->size =
@@ -20,13 +16,10 @@ void drop_item(item_drop *drop, vec2f pos, item_types type) {
 }
 
 b8 item_placable(item_types type) {
-    if (type == ITEM_GRASS_BLOCK || type == ITEM_DIRT || type == ITEM_STONE ||
-        type == ITEM_SAND || type == ITEM_BEDROCK || type == ITEM_FLOWER_ROSE ||
-        type == ITEM_SUGAR_CANE || type == ITEM_OAK_LOG ||
-        type == ITEM_OAK_LEAVES) {
-        return true;
+    if (type == ITEM_NONE) {
+        return false;
     }
-    return false;
+    return true;
 }
 
 void update_drop(item_drop *drop, chunk *chunks) {
@@ -67,6 +60,15 @@ void update_drop(item_drop *drop, chunk *chunks) {
                                              // below by slightly offsetting
             }
             drop->vel.y = 0;
+        }
+
+        if (check_collision_vec2f_rect(drop->collider_pos, tile_collider)) {
+            if (drop->collider_pos.x <
+                tile_pos.x + (tile_collider.size.x * 0.5f)) {
+                drop->collider_pos.x = tile_pos.x - drop->collider_size.x;
+            } else {
+                drop->collider_pos.x = tile_pos.x + tile_collider.size.x;
+            }
         }
     }
     f32 offset = 0.0f;

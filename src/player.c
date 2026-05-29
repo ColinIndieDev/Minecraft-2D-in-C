@@ -2,12 +2,10 @@
 #include "blocks.h"
 #include "chunk.h"
 #include "items.h"
-#include <cpstd/cpvec.h>
-#include <stdio.h>
+
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
-#endif
-#ifdef __EMSCRIPTEN__
+#else
 #include "../cpstd/cpmath.h"
 #include "../external/cpl.h"
 #endif
@@ -79,16 +77,147 @@ i32 item_id_to_block_id(i32 item_id) {
     case ITEM_OAK_LEAVES:
         return BLOCK_OAK_LEAVES;
         break;
+    case ITEM_GRAVEL:
+        return BLOCK_GRAVEL;
+        break;
+    case ITEM_COBBLESTONE:
+        return BLOCK_COBBLESTONE;
+        break;
+    case ITEM_OAK_PLANKS:
+        return BLOCK_OAK_PLANKS;
+        break;
+    case ITEM_COAL_ORE:
+        return BLOCK_COAL_ORE;
+        break;
+    case ITEM_IRON_ORE:
+        return BLOCK_IRON_ORE;
+        break;
+    case ITEM_DIAMOND_ORE:
+        return BLOCK_DIAMOND_ORE;
+        break;
     default:
         return -1;
     }
     return -1;
 }
 
+i32 block_id_to_item_id(i32 block_id) {
+    switch (block_id) {
+    case BLOCK_GRASS_BLOCK:
+        return ITEM_GRASS_BLOCK;
+        break;
+    case BLOCK_DIRT:
+        return ITEM_DIRT;
+        break;
+    case BLOCK_STONE:
+        return ITEM_STONE;
+        break;
+    case BLOCK_SAND:
+        return ITEM_SAND;
+        break;
+    case BLOCK_BEDROCK:
+        return ITEM_BEDROCK;
+        break;
+    case BLOCK_FLOWER_ROSE:
+        return ITEM_FLOWER_ROSE;
+        break;
+    case BLOCK_SUGAR_CANE:
+        return ITEM_SUGAR_CANE;
+        break;
+    case BLOCK_OAK_LOG:
+        return ITEM_OAK_LOG;
+        break;
+    case BLOCK_OAK_LEAVES:
+        return ITEM_OAK_LEAVES;
+        break;
+    case BLOCK_GRAVEL:
+        return ITEM_GRAVEL;
+        break;
+    case BLOCK_COBBLESTONE:
+        return ITEM_COBBLESTONE;
+        break;
+    case BLOCK_OAK_PLANKS:
+        return ITEM_OAK_PLANKS;
+        break;
+    case BLOCK_COAL_ORE:
+        return ITEM_COAL_ORE;
+        break;
+    case BLOCK_IRON_ORE:
+        return ITEM_IRON_ORE;
+        break;
+    case BLOCK_DIAMOND_ORE:
+        return ITEM_DIAMOND_ORE;
+        break;
+    default:
+        return -1;
+    }
+    return -1;
+}
+
+vec2f raycast_hit_tile(chunk *chunks, vec2f origin, vec2f d, f32 max_dist,
+                       block_data_t *block_data) {
+    vec2f dir = vec2f_norm(d);
+    vec2f tile = VEC2F(cpm_floorf(origin.x / BLOCK_SIZE) * BLOCK_SIZE,
+                       cpm_floorf(origin.y / BLOCK_SIZE) * BLOCK_SIZE);
+    vec2f d_dist =
+        VEC2F(CPM_ABS(BLOCK_SIZE / dir.x), CPM_ABS(BLOCK_SIZE / dir.y));
+    vec2f step = VEC2F(0, 0);
+    vec2f side_dist = VEC2F(0, 0);
+    if (dir.x < 0) {
+        step.x = -BLOCK_SIZE;
+        side_dist.x = (origin.x - tile.x) * (d_dist.x / BLOCK_SIZE);
+    } else {
+        step.x = BLOCK_SIZE;
+        side_dist.x =
+            (tile.x + BLOCK_SIZE - origin.x) * (d_dist.x / BLOCK_SIZE);
+    }
+    if (dir.y < 0) {
+        step.y = -BLOCK_SIZE;
+        side_dist.y = (origin.y - tile.y) * (d_dist.y / BLOCK_SIZE);
+    } else {
+        step.y = BLOCK_SIZE;
+        side_dist.y =
+            (tile.y + BLOCK_SIZE - origin.y) * (d_dist.y / BLOCK_SIZE);
+    }
+    f32 traveled = 0.0f;
+    while (traveled < max_dist) {
+        if (side_dist.x < side_dist.y) {
+            traveled = side_dist.x;
+            side_dist.x += d_dist.x;
+            tile.x += step.x;
+        } else {
+            traveled = side_dist.y;
+            side_dist.y += d_dist.y;
+            tile.y += step.y;
+        }
+        i32 chunk_idx = (i32)tile.x / (CHUNK_SIZE * BLOCK_SIZE);
+
+        if (tile.x < 0) {
+            chunk_idx = (((i32)tile.x + 1) / (CHUNK_SIZE * BLOCK_SIZE)) - 1;
+        }
+
+        if (chunk_idx >= 0 && chunk_idx < MAP_SIZE) {
+            if (tilemap_tile_exists(&chunks[chunk_idx].tiles, tile) ||
+                (tilemap_tile_exists(&chunks[chunk_idx].tiles_passable, tile) &&
+                 !vec2f_cmp(tilemap_get_tile_uv(
+                                &chunks[chunk_idx].tiles_passable, tile),
+                            block_data[BLOCK_WATER].uv))) {
+                return tile;
+            }
+        }
+    }
+
+    return VEC2F(-1, -1);
+}
+
 void handle_block_placing(player_t *player, vec2f mouse_pos,
                           vec2f mouse_pos_tilemap, chunk *chunks,
                           block_data_t *block_data) {
     if (is_mouse_pressed(MOUSE_BUTTON_RIGHT)) {
+        if (vec2f_dist(&player->pos, &mouse_pos) >
+            MINE_AND_PLACE_RANGE * BLOCK_SIZE) {
+            return;
+        }
         if (mouse_pos.x < 0 ||
             mouse_pos.x > MAP_SIZE * CHUNK_SIZE * BLOCK_SIZE) {
             return;
@@ -132,7 +261,7 @@ void handle_block_placing(player_t *player, vec2f mouse_pos,
                 uv = tilemap_get_tile_uv(&chunks[idx].tiles_passable,
                                          mouse_pos_tilemap);
                 if (vec2f_cmp(uv, block_data[BLOCK_WATER].uv) &&
-                    !block_passable(block_id)) {
+                    !block_data[block_id].passable) {
                     tilemap_delete_tile(&chunks[idx].tiles_passable,
                                         mouse_pos_tilemap);
                     tilemap_add_tile(&chunks[idx].tiles, mouse_pos_tilemap,
@@ -148,7 +277,7 @@ void handle_block_placing(player_t *player, vec2f mouse_pos,
                     }
                 }
             } else {
-                if (block_passable(block_id)) {
+                if (block_data[block_id].passable) {
                     tilemap_add_tile(
                         &chunks[idx].tiles_passable, mouse_pos_tilemap,
                         VEC2F(BLOCK_SIZE, BLOCK_SIZE), block_data[block_id].uv);
@@ -169,41 +298,6 @@ void handle_block_placing(player_t *player, vec2f mouse_pos,
     }
 }
 
-i32 block_id_to_item_id(i32 block_id) {
-    switch (block_id) {
-    case BLOCK_GRASS_BLOCK:
-        return ITEM_GRASS_BLOCK;
-        break;
-    case BLOCK_DIRT:
-        return ITEM_DIRT;
-        break;
-    case BLOCK_STONE:
-        return ITEM_STONE;
-        break;
-    case BLOCK_SAND:
-        return ITEM_SAND;
-        break;
-    case BLOCK_BEDROCK:
-        return ITEM_BEDROCK;
-        break;
-    case BLOCK_FLOWER_ROSE:
-        return ITEM_FLOWER_ROSE;
-        break;
-    case BLOCK_SUGAR_CANE:
-        return ITEM_SUGAR_CANE;
-        break;
-    case BLOCK_OAK_LOG:
-        return ITEM_OAK_LOG;
-        break;
-    case BLOCK_OAK_LEAVES:
-        return ITEM_OAK_LEAVES;
-        break;
-    default:
-        return -1;
-    }
-    return -1;
-}
-
 void handle_block_breaking(player_t *player, vec2f mouse_pos,
                            vec2f mouse_pos_tilemap, chunk *chunks,
                            block_data_t *block_data, vec_item_drop *drops) {
@@ -212,11 +306,27 @@ void handle_block_breaking(player_t *player, vec2f mouse_pos,
         player->block_mining_dt = 0.0f;
     }
     if (is_mouse_down(MOUSE_BUTTON_LEFT)) {
+        if (vec2f_dist(&player->pos, &mouse_pos) >
+            MINE_AND_PLACE_RANGE * BLOCK_SIZE) {
+            player->block_mining = VEC2F(-1, -1);
+            player->block_mining_dt = 0.0f;
+            return;
+        }
         if (mouse_pos.x < 0 ||
             mouse_pos.x > MAP_SIZE * CHUNK_SIZE * BLOCK_SIZE) {
             return;
         }
         u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
+        vec2f ray_dir =
+            VEC2F(mouse_pos.x - player->pos.x, mouse_pos.y - player->pos.y);
+        if (!vec2f_cmp(raycast_hit_tile(chunks, player->pos, ray_dir,
+                                        MINE_AND_PLACE_RANGE * BLOCK_SIZE,
+                                        block_data),
+                       mouse_pos_tilemap)) {
+            player->block_mining = VEC2F(-1, -1);
+            player->block_mining_dt = 0.0f;
+            return;
+        }
         vec2f uv;
         if (tilemap_tile_exists(&chunks[idx].tiles_passable,
                                 mouse_pos_tilemap)) {
@@ -244,9 +354,12 @@ void handle_block_breaking(player_t *player, vec2f mouse_pos,
             if (item_id != -1 && item_id != ITEM_OAK_LEAVES) {
                 vec_item_drop_push_back(drops, (item_drop){});
                 if (item_id == ITEM_GRASS_BLOCK) {
-                    drop_item(vec_item_drop_back(drops), mouse_pos, ITEM_DIRT);
+                    drop_item(vec_item_drop_back(drops), ITEM_DIRT, mouse_pos);
+                } else if (item_id == ITEM_STONE) {
+                    drop_item(vec_item_drop_back(drops), ITEM_COBBLESTONE,
+                              mouse_pos);
                 } else {
-                    drop_item(vec_item_drop_back(drops), mouse_pos, item_id);
+                    drop_item(vec_item_drop_back(drops), item_id, mouse_pos);
                 }
             }
 
@@ -262,10 +375,21 @@ void handle_block_breaking(player_t *player, vec2f mouse_pos,
 }
 
 void handle_item_drops(vec_item_drop *drops, vec2f mouse_pos,
-                       player_t *player) {
+                       vec2f mouse_pos_tilemap, player_t *player,
+                       chunk *chunks) {
     if (is_key_pressed(KEY_Q)) {
         vec_item_drop_push_back(drops, (item_drop){});
-        drop_item(vec_item_drop_back(drops), mouse_pos, ITEM_DIRT);
+        item_types type = player->hotbar[player->hotbar_selected].item;
+        u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
+        if (type != ITEM_NONE &&
+            player->hotbar[player->hotbar_selected].count > 0 &&
+            !tilemap_tile_exists(&chunks[idx].tiles, mouse_pos_tilemap)) {
+            drop_item(vec_item_drop_back(drops), type, mouse_pos);
+            player->hotbar[player->hotbar_selected].count--;
+            if (player->hotbar[player->hotbar_selected].count == 0) {
+                player->hotbar[player->hotbar_selected].item = ITEM_NONE;
+            }
+        }
     }
 
     // TODO if hotbar is full, dropped item still gets destroyed
@@ -363,7 +487,7 @@ void handle_controls(player_t *player, chunk *chunks, block_data_t *block_data,
     handle_block_breaking(player, mouse_pos, mouse_pos_tilemap, chunks,
                           block_data, drops);
 
-    handle_item_drops(drops, mouse_pos, player);
+    handle_item_drops(drops, mouse_pos, mouse_pos_tilemap, player, chunks);
 }
 
 void move_and_collide(player_t *player, chunk *chunks) {
@@ -467,10 +591,9 @@ void draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
 
     vec2f size = VEC2F(hotbar->size.x * 4, hotbar->size.y * 4);
     f32 offset_y = 20.0f;
-    draw_texture2D(hotbar,
-                   VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f),
-                         get_screen_height() - size.y - offset_y),
-                   size, WHITE, 0);
+    vec2f hotbar_pos = VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f),
+                             get_screen_height() - size.y - offset_y);
+    draw_texture2D(hotbar, hotbar_pos, size, WHITE, 0);
 
     vec2f arrow_size =
         VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
@@ -498,6 +621,69 @@ void draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
                   slot_pos.y + (arrow_size.y * 0.5f) - (item_size.y * 0.5f)),
             item_size, WHITE, 0);
     }
+
+    tilemap_begin_editing(&player->status_icons_bg);
+    f32 icon_offset = 10.0f;
+    for (u32 i = 0; i < 10; i++) {
+        tilemap_add_tile(
+            &player->status_icons_bg,
+            VEC2F(hotbar_pos.x + ((ICON_PIXEL_SIZE) * 4 * i),
+                  hotbar_pos.y - (ICON_PIXEL_SIZE * 4) - icon_offset),
+            VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4), ICON_HEART_BG);
+    }
+
+    vec2f last_heart_pos =
+        VEC2F(hotbar_pos.x + ((ICON_PIXEL_SIZE) * 4 * 9),
+              hotbar_pos.y - (ICON_PIXEL_SIZE * 4) - icon_offset);
+
+    f32 hunger_bar_offset = 10.0f * 4;
+    for (u32 i = 0; i < 10; i++) {
+        tilemap_add_tile(
+            &player->status_icons_bg,
+            VEC2F(last_heart_pos.x + (ICON_PIXEL_SIZE * 4) +
+                      ((ICON_PIXEL_SIZE - 1) * 4 * i) + hunger_bar_offset,
+                  last_heart_pos.y),
+            VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4), ICON_HUNGER_BG);
+    }
+
+    tilemap_begin_editing(&player->status_icons);
+    for (u32 i = 0; i < (u32)(player->health * 0.5f); i++) {
+        tilemap_add_tile(
+            &player->status_icons,
+            VEC2F(hotbar_pos.x + ((ICON_PIXEL_SIZE) * 4 * i),
+                  hotbar_pos.y - (ICON_PIXEL_SIZE * 4) - icon_offset),
+            VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4), ICON_HEART);
+    }
+    if (cpm_modf(player->health, 2.0f) == 1.0f) {
+        tilemap_add_tile(
+            &player->status_icons,
+            VEC2F(hotbar_pos.x +
+                      ((ICON_PIXEL_SIZE) * 4 * (u32)(player->health * 0.5f)),
+                  hotbar_pos.y - (ICON_PIXEL_SIZE * 4) - icon_offset),
+            VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4), ICON_HEART_HALF);
+    }
+
+    for (u32 i = 0; i < (u32)(player->hunger * 0.5f); i++) {
+        tilemap_add_tile(
+            &player->status_icons,
+            VEC2F(last_heart_pos.x + (ICON_PIXEL_SIZE * 4) +
+                      ((ICON_PIXEL_SIZE - 1) * 4 * i) + hunger_bar_offset,
+                  last_heart_pos.y),
+            VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4), ICON_HUNGER);
+    }
+    if (cpm_modf(player->hunger, 2.0f) == 1.0f) {
+        tilemap_add_tile(&player->status_icons,
+                         VEC2F(last_heart_pos.x + (ICON_PIXEL_SIZE * 4) +
+                                   ((ICON_PIXEL_SIZE - 1) * 4 *
+                                    (u32)(player->hunger * 0.5f)) +
+                                   hunger_bar_offset,
+                               last_heart_pos.y),
+                         VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4),
+                         ICON_HUNGER_HALF);
+    }
+
+    tilemap_draw(&player->status_icons_bg, WHITE);
+    tilemap_draw(&player->status_icons, WHITE);
 
     begin_draw(TEXT, false);
 

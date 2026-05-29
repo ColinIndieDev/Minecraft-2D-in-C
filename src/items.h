@@ -1,16 +1,16 @@
 #pragma once
 
+#include "chunk.h"
+
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
-#endif
-#ifdef __EMSCRIPTEN__
+#else
 #include "../cpstd/cpmath.h"
 #include "../external/cpl.h"
 #endif
 
-#include "chunk.h"
-
 #define ITEM_DROP_LIFETIME (5 * 60)
+#define MAX_ANIM_OFFSET 10
 
 typedef enum {
     ITEM_NONE,
@@ -23,6 +23,12 @@ typedef enum {
     ITEM_SUGAR_CANE,
     ITEM_OAK_LOG,
     ITEM_OAK_LEAVES,
+    ITEM_GRAVEL,
+    ITEM_COBBLESTONE,
+    ITEM_OAK_PLANKS,
+    ITEM_COAL_ORE,
+    ITEM_IRON_ORE,
+    ITEM_DIAMOND_ORE,
     ITEM_TYPES
 } item_types;
 
@@ -41,6 +47,6 @@ typedef struct {
 VEC_DECL(item_drop, vec_item_drop)
 
 b8 item_placable(item_types type);
-void drop_item(item_drop *drop, vec2f pos, item_types type);
+void drop_item(item_drop *drop, item_types type, vec2f pos);
 void update_drop(item_drop *drop, chunk *chunks);
 void draw_drop(item_drop *drop, texture *item_textures);

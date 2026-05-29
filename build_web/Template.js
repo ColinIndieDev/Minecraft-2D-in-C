@@ -71,7 +71,7 @@ var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIR
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
-// include: /tmp/tmp1mhe70g8.js
+// include: /tmp/tmpgkq_g5mw.js
 
   if (!Module['expectedDataFileDownloads']) Module['expectedDataFileDownloads'] = 0;
   Module['expectedDataFileDownloads']++;
@@ -162,6 +162,9 @@ var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIR
 Module['FS_createPath']("/", "assets", true, true);
 Module['FS_createPath']("/assets", "fonts", true, true);
 Module['FS_createPath']("/assets", "images", true, true);
+Module['FS_createPath']("/assets/images", "blocks", true, true);
+Module['FS_createPath']("/assets/images", "gui", true, true);
+Module['FS_createPath']("/assets/images", "items", true, true);
 Module['FS_createPath']("/", "shaders", true, true);
 Module['FS_createPath']("/shaders", "frag", true, true);
 Module['FS_createPath']("/shaders/frag", "2D", true, true);
@@ -207,25 +210,25 @@ Module['FS_createPath']("/shaders/vert", "2D", true, true);
     }
 
     }
-    loadPackage({"files": [{"filename": "/assets/fonts/arial.ttf", "start": 0, "end": 915212}, {"filename": "/assets/fonts/default.ttf", "start": 915212, "end": 1066160}, {"filename": "/assets/images/block_map.png", "start": 1066160, "end": 1069902}, {"filename": "/shaders/frag/2D/hdr.frag", "start": 1069902, "end": 1070464}, {"filename": "/shaders/frag/2D/hdr_w.frag", "start": 1070464, "end": 1071050}, {"filename": "/shaders/frag/2D/shape_lit.frag", "start": 1071050, "end": 1072204}, {"filename": "/shaders/frag/2D/shape_lit_w.frag", "start": 1072204, "end": 1073382}, {"filename": "/shaders/frag/2D/shape_unlit.frag", "start": 1073382, "end": 1073514}, {"filename": "/shaders/frag/2D/shape_unlit_w.frag", "start": 1073514, "end": 1073670}, {"filename": "/shaders/frag/2D/text.frag", "start": 1073670, "end": 1073904}, {"filename": "/shaders/frag/2D/text_w.frag", "start": 1073904, "end": 1074163}, {"filename": "/shaders/frag/2D/texture_lit.frag", "start": 1074163, "end": 1075503}, {"filename": "/shaders/frag/2D/texture_lit_w.frag", "start": 1075503, "end": 1076867}, {"filename": "/shaders/frag/2D/texture_unlit.frag", "start": 1076867, "end": 1077163}, {"filename": "/shaders/frag/2D/texture_unlit_w.frag", "start": 1077163, "end": 1077483}, {"filename": "/shaders/vert/2D/hdr.vert", "start": 1077483, "end": 1077684}, {"filename": "/shaders/vert/2D/hdr_w.vert", "start": 1077684, "end": 1077909}, {"filename": "/shaders/vert/2D/shape.vert", "start": 1077909, "end": 1078173}, {"filename": "/shaders/vert/2D/shape_w.vert", "start": 1078173, "end": 1078461}, {"filename": "/shaders/vert/2D/text.vert", "start": 1078461, "end": 1078666}, {"filename": "/shaders/vert/2D/text_w.vert", "start": 1078666, "end": 1078895}, {"filename": "/shaders/vert/2D/texture.vert", "start": 1078895, "end": 1079274}, {"filename": "/shaders/vert/2D/texture_w.vert", "start": 1079274, "end": 1079677}], "remote_package_size": 1079677});
+    loadPackage({"files": [{"filename": "/assets/fonts/default.ttf", "start": 0, "end": 14488}, {"filename": "/assets/images/blocks/block_map.png", "start": 14488, "end": 20311}, {"filename": "/assets/images/gui/hotbar.png", "start": 20311, "end": 24447}, {"filename": "/assets/images/gui/hotbar_arrow.png", "start": 24447, "end": 25194}, {"filename": "/assets/images/gui/icons.png", "start": 25194, "end": 25921}, {"filename": "/assets/images/items/bedrock.png", "start": 25921, "end": 26276}, {"filename": "/assets/images/items/coal_ore.png", "start": 26276, "end": 26713}, {"filename": "/assets/images/items/cobblestone.png", "start": 26713, "end": 27456}, {"filename": "/assets/images/items/diamond_ore.png", "start": 27456, "end": 27916}, {"filename": "/assets/images/items/dirt.png", "start": 27916, "end": 28352}, {"filename": "/assets/images/items/grass_block.png", "start": 28352, "end": 28931}, {"filename": "/assets/images/items/gravel.png", "start": 28931, "end": 29709}, {"filename": "/assets/images/items/iron_ore.png", "start": 29709, "end": 30168}, {"filename": "/assets/images/items/oak_leaves.png", "start": 30168, "end": 30514}, {"filename": "/assets/images/items/oak_log.png", "start": 30514, "end": 31325}, {"filename": "/assets/images/items/oak_planks.png", "start": 31325, "end": 31733}, {"filename": "/assets/images/items/rose.png", "start": 31733, "end": 31997}, {"filename": "/assets/images/items/sand.png", "start": 31997, "end": 32904}, {"filename": "/assets/images/items/stone.png", "start": 32904, "end": 33253}, {"filename": "/assets/images/items/sugar_cane.png", "start": 33253, "end": 33457}, {"filename": "/shaders/frag/2D/hdr.frag", "start": 33457, "end": 34019}, {"filename": "/shaders/frag/2D/hdr_w.frag", "start": 34019, "end": 34605}, {"filename": "/shaders/frag/2D/shape_lit.frag", "start": 34605, "end": 35759}, {"filename": "/shaders/frag/2D/shape_lit_w.frag", "start": 35759, "end": 36937}, {"filename": "/shaders/frag/2D/shape_unlit.frag", "start": 36937, "end": 37069}, {"filename": "/shaders/frag/2D/shape_unlit_w.frag", "start": 37069, "end": 37225}, {"filename": "/shaders/frag/2D/text.frag", "start": 37225, "end": 37459}, {"filename": "/shaders/frag/2D/text_w.frag", "start": 37459, "end": 37718}, {"filename": "/shaders/frag/2D/texture_lit.frag", "start": 37718, "end": 39058}, {"filename": "/shaders/frag/2D/texture_lit_w.frag", "start": 39058, "end": 40422}, {"filename": "/shaders/frag/2D/texture_unlit.frag", "start": 40422, "end": 40718}, {"filename": "/shaders/frag/2D/texture_unlit_w.frag", "start": 40718, "end": 41038}, {"filename": "/shaders/vert/2D/hdr.vert", "start": 41038, "end": 41239}, {"filename": "/shaders/vert/2D/hdr_w.vert", "start": 41239, "end": 41464}, {"filename": "/shaders/vert/2D/shape.vert", "start": 41464, "end": 41728}, {"filename": "/shaders/vert/2D/shape_w.vert", "start": 41728, "end": 42016}, {"filename": "/shaders/vert/2D/text.vert", "start": 42016, "end": 42221}, {"filename": "/shaders/vert/2D/text_w.vert", "start": 42221, "end": 42450}, {"filename": "/shaders/vert/2D/texture.vert", "start": 42450, "end": 42829}, {"filename": "/shaders/vert/2D/texture_w.vert", "start": 42829, "end": 43232}], "remote_package_size": 43232});
 
   })();
 
-// end include: /tmp/tmp1mhe70g8.js
-// include: /tmp/tmppf8p6h3j.js
+// end include: /tmp/tmpgkq_g5mw.js
+// include: /tmp/tmpey6b2t5_.js
 
     // All the pre-js content up to here must remain later on, we need to run
     // it.
     if ((typeof ENVIRONMENT_IS_WASM_WORKER != 'undefined' && ENVIRONMENT_IS_WASM_WORKER) || (typeof ENVIRONMENT_IS_PTHREAD != 'undefined' && ENVIRONMENT_IS_PTHREAD) || (typeof ENVIRONMENT_IS_AUDIO_WORKLET != 'undefined' && ENVIRONMENT_IS_AUDIO_WORKLET)) Module['preRun'] = [];
     var necessaryPreJSTasks = Module['preRun'].slice();
-  // end include: /tmp/tmppf8p6h3j.js
-// include: /tmp/tmp4hb6ev3i.js
+  // end include: /tmp/tmpey6b2t5_.js
+// include: /tmp/tmppypspvjb.js
 
     if (!Module['preRun']) throw 'Module.preRun should exist because file support used it; did a pre-js delete it?';
     necessaryPreJSTasks.forEach((task) => {
       if (Module['preRun'].indexOf(task) < 0) throw 'All preRun tasks that exist before user pre-js code should remain after; did you replace Module or modify Module.preRun?';
     });
-  // end include: /tmp/tmp4hb6ev3i.js
+  // end include: /tmp/tmppypspvjb.js
 
 
 var arguments_ = [];
