@@ -6,7 +6,6 @@
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
 #else
-#include "../cpstd/cpmath.h"
 #include "../external/cpl.h"
 #endif
 

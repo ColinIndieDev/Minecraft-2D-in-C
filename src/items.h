@@ -5,12 +5,14 @@
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
 #else
-#include "../cpstd/cpmath.h"
 #include "../external/cpl.h"
 #endif
 
+#define EXTERN_ITEMS_H_VARIABLES extern item_data_t item_data[ITEM_TYPES];
+
 #define ITEM_DROP_LIFETIME (5 * 60)
 #define MAX_ANIM_OFFSET 10
+#define ITEM_TEX_PATH "assets/images/items/"
 
 typedef enum {
     ITEM_NONE,
@@ -29,8 +31,20 @@ typedef enum {
     ITEM_COAL_ORE,
     ITEM_IRON_ORE,
     ITEM_DIAMOND_ORE,
+    ITEM_COAL,
+    ITEM_DIAMOND,
+    ITEM_FLOWER_DANDELION,
+    ITEM_FLOWER_HOUSTONIA,
+    ITEM_FLOWER_OXEYE_DAISY,
+    ITEM_FLOWER_ALLIUM,
+    ITEM_GRASS,
     ITEM_TYPES
 } item_types;
+
+typedef struct {
+    b8 placable;
+    char *tex_path;
+} item_data_t;
 
 typedef struct {
     vec2f pos;
@@ -46,7 +60,6 @@ typedef struct {
 } item_drop;
 VEC_DECL(item_drop, vec_item_drop)
 
-b8 item_placable(item_types type);
-void drop_item(item_drop *drop, item_types type, vec2f pos);
-void update_drop(item_drop *drop, chunk *chunks);
-void draw_drop(item_drop *drop, texture *item_textures);
+void item_drop_item(item_drop *drop, item_types type, vec2f pos);
+void item_update_drop(item_drop *drop, chunk *chunks);
+void item_draw_drop(item_drop *drop, texture *item_textures);

@@ -1,11 +1,10 @@
 #include "chunk.h"
+#include "blocks.h"
 
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
-#include <cpstd/cpbase.h>
 #include <cpstd/cprng.h>
 #else
-#include "../cpstd/cpbase.h"
 #include "../cpstd/cprng.h"
 #include "../external/cpl.h"
 #endif
@@ -144,21 +143,66 @@ void chunk_gen_foliage(chunk *c, map_noise_t *map_noise,
         u32 height = MIN_TERRAIN_HEIGHT +
                      (noise * (MAX_FIELD_HEIGHT - MIN_TERRAIN_HEIGHT));
 
-        if (cprng_rand() % 5 == 0) {
+        f32 tree_mask_val = fnlGetNoise2D(
+            &map_noise->tree_mask, (f32)((u32)(pos.x * CHUNK_SIZE) + x), 0);
+
+        f32 probability = 0.0f;
+        if (tree_mask_val > 0.1f) {
+            probability = 0.2f;
+        } else {
+            probability = 0.7f;
+        }
+
+        f32 spawn_chance = chunk_gen_hash((i32)(pos.x + (f32)x), (i32)height,
+                                          (i32)map_noise->tree_seed);
+
+        if (spawn_chance < probability) {
             if (height > SEA_LEVEL) {
                 vec2f block_pos =
                     VEC2F(((pos.x * CHUNK_SIZE) + x) * BLOCK_SIZE,
                           (MAX_CHUNK_HEIGHT - height) * BLOCK_SIZE);
                 if (!tilemap_tile_exists(&c->tiles, block_pos)) {
+                    u32 foliage_id = BLOCK_FLOWER_ROSE;
+                    f32 grass_probability =
+                        chunk_gen_hash((i32)(pos.x + (f32)x), (i32)height,
+                                       (i32)map_noise->terrain.seed + 135);
+                    if (grass_probability > 0.2f) {
+                        foliage_id = BLOCK_GRASS;
+                    } else {
+                        u32 flower_variant = (u32)(cpm_ceilf(
+                            4.0f * chunk_gen_hash(
+                                       (i32)(pos.x + (f32)x), (i32)height,
+                                       (i32)map_noise->terrain.seed - 10914)));
+                        switch (flower_variant) {
+                        case 1:
+                            foliage_id = BLOCK_FLOWER_DANDELION;
+                            break;
+                        case 2:
+                            foliage_id = BLOCK_FLOWER_HOUSTONIA;
+                            break;
+                        case 3:
+                            foliage_id = BLOCK_FLOWER_OXEYE_DAISY;
+                            break;
+                        case 4:
+                            foliage_id = BLOCK_FLOWER_ALLIUM;
+                            break;
+                        default:
+                            break;
+                        }
+                    }
                     tilemap_add_tile(&c->tiles_passable, block_pos,
                                      VEC2F_INIT(BLOCK_SIZE),
-                                     block_data[BLOCK_FLOWER_ROSE].uv);
+                                     block_data[foliage_id].uv);
                 }
             } else if (height == SEA_LEVEL) {
-                for (u32 y = 0; y < cprng_rand_range(1, 5); y++) {
+                f32 length =
+                    1.0f +
+                    (3.0f * chunk_gen_hash((i32)(pos.x + (f32)x), (i32)height,
+                                           (i32)map_noise->tree_seed - 1383));
+                for (u32 y = 0; y < (u32)(length); y++) {
                     vec2f block_pos =
                         VEC2F(((pos.x * CHUNK_SIZE) + x) * BLOCK_SIZE,
-                              (MAX_CHUNK_HEIGHT - height) * BLOCK_SIZE);
+                              (MAX_CHUNK_HEIGHT - height - y) * BLOCK_SIZE);
                     if (!tilemap_tile_exists(&c->tiles, block_pos)) {
                         tilemap_add_tile(&c->tiles_passable, block_pos,
                                          VEC2F_INIT(BLOCK_SIZE),

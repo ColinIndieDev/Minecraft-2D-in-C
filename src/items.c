@@ -1,6 +1,32 @@
 #include "items.h"
 
-void drop_item(item_drop *drop, item_types type, vec2f pos) {
+item_data_t item_data[ITEM_TYPES] = {
+    {.placable = false},                                                // None
+    {.placable = true, .tex_path = ITEM_TEX_PATH "grass_block.png"},    // Grass Block
+    {.placable = true, .tex_path = ITEM_TEX_PATH "dirt.png"},           // Dirt 
+    {.placable = true, .tex_path = ITEM_TEX_PATH "stone.png"},          // Stone 
+    {.placable = true, .tex_path = ITEM_TEX_PATH "sand.png"},           // Sand
+    {.placable = true, .tex_path = ITEM_TEX_PATH "bedrock.png"},        // Bedrock
+    {.placable = true, .tex_path = ITEM_TEX_PATH "rose.png"},           // Rose
+    {.placable = true, .tex_path = ITEM_TEX_PATH "sugar_cane.png"},     // Sugar Cane
+    {.placable = true, .tex_path = ITEM_TEX_PATH "oak_log.png"},        // Oak Log
+    {.placable = true, .tex_path = ITEM_TEX_PATH "oak_leaves.png"},     // Oak Leaves
+    {.placable = true, .tex_path = ITEM_TEX_PATH "gravel.png"},         // Gravel
+    {.placable = true, .tex_path = ITEM_TEX_PATH "cobblestone.png"},    // Cobblestone
+    {.placable = true, .tex_path = ITEM_TEX_PATH "oak_planks.png"},     // Oak Planks
+    {.placable = true, .tex_path = ITEM_TEX_PATH "coal_ore.png"},       // Coal Ore
+    {.placable = true, .tex_path = ITEM_TEX_PATH "iron_ore.png"},       // Iron Ore
+    {.placable = true, .tex_path = ITEM_TEX_PATH "diamond_ore.png"},    // Diamond Ore
+    {.placable = false, .tex_path = ITEM_TEX_PATH "coal.png"},          // Coal
+    {.placable = false, .tex_path = ITEM_TEX_PATH "diamond.png"},       // Diamond
+    {.placable = true, .tex_path = ITEM_TEX_PATH "dandelion.png"},      // Dandelion
+    {.placable = true, .tex_path = ITEM_TEX_PATH "houstonia.png"},      // Houstonia
+    {.placable = true, .tex_path = ITEM_TEX_PATH "oxeye_daisy.png"},    // Oxeye Daisy
+    {.placable = true, .tex_path = ITEM_TEX_PATH "allium.png"},         // Allium
+    {.placable = true, .tex_path = ITEM_TEX_PATH "grass.png"},          // Grass
+};
+
+void item_drop_item(item_drop *drop, item_types type, vec2f pos) {
     drop->collider_pos = pos;
     drop->collider_size = VEC2F(50, 50);
     drop->size =
@@ -15,14 +41,7 @@ void drop_item(item_drop *drop, item_types type, vec2f pos) {
     drop->timer = get_time();
 }
 
-b8 item_placable(item_types type) {
-    if (type == ITEM_NONE) {
-        return false;
-    }
-    return true;
-}
-
-void update_drop(item_drop *drop, chunk *chunks) {
+void item_update_drop_collision(item_drop *drop, chunk *chunks) {
     drop->vel.y += drop->gravity * get_dt();
     if (drop->vel.y > drop->max_fall_speed) {
         drop->vel.y = drop->max_fall_speed;
@@ -71,6 +90,9 @@ void update_drop(item_drop *drop, chunk *chunks) {
             }
         }
     }
+}
+
+void item_update_anim(item_drop *drop) {
     f32 offset = 0.0f;
     if (drop->ground) {
         offset = cpm_sinf(get_time() * 2) * MAX_ANIM_OFFSET;
@@ -79,7 +101,12 @@ void update_drop(item_drop *drop, chunk *chunks) {
                       drop->collider_pos.y + (drop->size.y * 0.5f) + offset);
 }
 
-void draw_drop(item_drop *drop, texture *item_textures) {
+void item_update_drop(item_drop *drop, chunk *chunks) {
+    item_update_drop_collision(drop, chunks);
+    item_update_anim(drop);
+}
+
+void item_draw_drop(item_drop *drop, texture *item_textures) {
     color c = WHITE;
     if (get_time() >= drop->timer + ITEM_DROP_LIFETIME - 10.0f) {
         f32 dt = drop->timer + ITEM_DROP_LIFETIME - get_time();

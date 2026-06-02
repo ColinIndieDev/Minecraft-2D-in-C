@@ -1,7 +1,10 @@
 #define CPL_IMPLEMENTATION
+#define CPRNG_IMPL
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
+#include <cpstd/cprng.h>
 #else
+#include "../cpstd/cprng.h"
 #include "../external/cpl.h"
 #endif
 #define FNL_IMPL
@@ -10,34 +13,12 @@
 #include "chunk.h"
 #include "items.h"
 #include "player.h"
+#include "textures.h"
 
-#define CPRNG_IMPL
-#ifndef __EMSCRIPTEN__
-#include <cpstd/cprng.h>
-#endif
-#ifdef __EMSCRIPTEN__
-#include "../cpstd/cprng.h"
-#endif
+EXTERN_BLOCKS_H_VARIABLES
+EXTERN_ITEMS_H_VARIABLES
+EXTERN_TEXTURES_H_VARIABLES
 
-block_data_t block_data[BLOCK_TYPES] = {
-    {.uv = VEC2F(1, 0), .base_mining_dt = 0.6f,   .unbreakable = false, .passable = false},  // Grass Block
-    {.uv = VEC2F(0, 0), .base_mining_dt = 0.6f,   .unbreakable = false, .passable = false},  // Dirt
-    {.uv = VEC2F(2, 0), .base_mining_dt = 10.0f,  .unbreakable = false, .passable = false}, // Stone
-    {.uv = VEC2F(0, 1), .base_mining_dt = 0.6f,   .unbreakable = false, .passable = false},  // Sand
-    {.uv = VEC2F(1, 1), .base_mining_dt = -1.0f,  .unbreakable = true,  .passable = false},  // Bedrock
-    {.uv = VEC2F(2, 1), .base_mining_dt = -1.0f,  .unbreakable = true,  .passable = true},   // Water
-    {.uv = VEC2F(0, 2), .base_mining_dt = 0.1f,   .unbreakable = false, .passable = true},   // Rose
-    {.uv = VEC2F(1, 2), .base_mining_dt = 0.3f,   .unbreakable = false, .passable = true},   // Sugar Cane
-    {.uv = VEC2F(3, 0), .base_mining_dt = 2.0f,   .unbreakable = false, .passable = false},  // Oak Log
-    {.uv = VEC2F(3, 1), .base_mining_dt = 0.3f,   .unbreakable = false, .passable = false},  // Oak Leaves
-    {.uv = VEC2F(2, 2), .base_mining_dt = 0.6f,   .unbreakable = false, .passable = false},  // Gravel
-    {.uv = VEC2F(3, 2), .base_mining_dt = 10.0f,  .unbreakable = false, .passable = false}, // Cobblestone
-    {.uv = VEC2F(3, 3), .base_mining_dt = 2.0f,   .unbreakable = false, .passable = false},  // Oak Planks
-    {.uv = VEC2F(2, 3), .base_mining_dt = 15.0f,  .unbreakable = false, .passable = false}, // Coal Ore
-    {.uv = VEC2F(1, 3), .base_mining_dt = 15.0f,  .unbreakable = false, .passable = false}, // Iron Ore
-    {.uv = VEC2F(0, 3), .base_mining_dt = 15.0f,  .unbreakable = false, .passable = false}, // Diamond Ore
-};
-texture item_textures[ITEM_TYPES];
 player_t player = {.pos = VEC2F(0, 0),
                    .size = VEC2F(0.5f * BLOCK_SIZE, 1.75f * BLOCK_SIZE),
                    .vel = VEC2F(0, 0),
@@ -51,16 +32,15 @@ player_t player = {.pos = VEC2F(0, 0),
                    .block_mining_timer = 0.0f,
                    .hotbar_selected = 0,
                    .health = 20,
-                   .hunger = 20};
-font f;
+                   .hunger = 20,
+                   .in_inventory = false};
 map_noise_t map_noise;
 chunk c[MAP_SIZE];
 VEC_IMPL(item_drop, vec_item_drop)
 vec_item_drop item_drops;
 
-texture hotbar;
-texture hotbar_arrow;
-
+void init_player();
+void init_map();
 void init();
 void main_loop();
 void draw_ui();
@@ -79,55 +59,10 @@ int main(void) {
     close_window();
 }
 
-void init() {
-    cprng_rand_seed();
-#ifndef __EMSCRIPTEN__
-    init_window(800, 800, "Hello CPL", OPENGL_VER_3_3);
-#else
-    init_window(800, 800, "Hello CPL", OPENGL_VER_3_0);
-#endif
-    enable_vsync(false);
-    create_font(&f, "assets/fonts/default.ttf", "default", FILTER_LINEAR);
+// {{{ Init Helper Functions
 
-    load_texture(&item_textures[ITEM_GRASS_BLOCK],
-                 "assets/images/items/grass_block.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_DIRT], "assets/images/items/dirt.png",
-                 FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_STONE], "assets/images/items/stone.png",
-                 FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_SAND], "assets/images/items/sand.png",
-                 FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_BEDROCK],
-                 "assets/images/items/bedrock.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_FLOWER_ROSE],
-                 "assets/images/items/rose.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_SUGAR_CANE],
-                 "assets/images/items/sugar_cane.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_OAK_LOG],
-                 "assets/images/items/oak_log.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_OAK_LEAVES],
-                 "assets/images/items/oak_leaves.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_GRAVEL], "assets/images/items/gravel.png",
-                 FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_COBBLESTONE],
-                 "assets/images/items/cobblestone.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_OAK_PLANKS],
-                 "assets/images/items/oak_planks.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_COAL_ORE],
-                 "assets/images/items/coal_ore.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_IRON_ORE],
-                 "assets/images/items/iron_ore.png", FILTER_NEAREST);
-    load_texture(&item_textures[ITEM_DIAMOND_ORE],
-                 "assets/images/items/diamond_ore.png", FILTER_NEAREST);
-
-    load_texture(&hotbar, "assets/images/gui/hotbar.png", FILTER_NEAREST);
-    load_texture(&hotbar_arrow, "assets/images/gui/hotbar_arrow.png",
-                 FILTER_NEAREST);
-
+void init_player() {
     vec_item_drop_reserve(&item_drops, 10);
-
-    chunk_gen_seed(&map_noise);
-
     for (u32 i = 0; i < 9; i++) {
         player.hotbar[i] = (slot){ITEM_NONE, 0};
     }
@@ -137,6 +72,10 @@ void init() {
     create_tilemap(&player.status_icons_bg, VEC2F(9, 9));
     tilemap_load_texture(&player.status_icons_bg, "assets/images/gui/icons.png",
                          FILTER_NEAREST);
+}
+
+void init_map() {
+    chunk_gen_seed(&map_noise);
 
     // Temporarily, but it actually does not suck
     for (u32 i = 0; i < MAP_SIZE; i++) {
@@ -144,26 +83,29 @@ void init() {
         tilemap_check_collidable_tiles(&c[i].tiles,
                                        VEC2F(BLOCK_SIZE, BLOCK_SIZE));
     }
-    set_spawn_point(&player, &map_noise.terrain);
+    player_set_spawn_point(&player, &map_noise.terrain);
+}
+
+// }}}
+
+void init() {
+    cprng_rand_seed();
+#ifndef __EMSCRIPTEN__
+    init_window(800, 800, "Hello CPL", OPENGL_VER_3_3);
+#else
+    init_window(800, 800, "Hello CPL", OPENGL_VER_3_0);
+#endif
+    enable_vsync(false);
+
+    textures_load_resources();
+    init_player();
+    init_map();
 }
 
 void main_loop() {
     update();
 
-    handle_controls(&player, c, block_data, &item_drops);
-    move_and_collide(&player, c);
-
-    FOREACH_VEC(item_drop, vec_item_drop, drop, &item_drops) {
-        update_drop(drop, c);
-    }
-    u32 w = 0;
-    for (u32 i = 0; i < item_drops.size; i++) {
-        item_drop drop = item_drops.data[i];
-        if (!(drop.timer + ITEM_DROP_LIFETIME <= get_time())) {
-            item_drops.data[w++] = item_drops.data[i];
-        }
-    }
-    item_drops.size = w;
+    player_update(&player, c, block_data, &item_drops);
 
     clear_background(LIGHT_BLUE);
 
@@ -187,12 +129,12 @@ void main_loop() {
     }
 
     FOREACH_VEC(item_drop, vec_item_drop, drop, &item_drops) {
-        draw_drop(drop, item_textures);
+        item_draw_drop(drop, item_textures);
     }
 
     begin_draw(SHAPE_2D_UNLIT, true);
 
-    draw_player(&player);
+    player_draw(&player);
 
     if (!vec2f_cmp(player.block_mining, VEC2F(-1, -1))) {
         draw_rect(player.block_mining,
@@ -223,7 +165,8 @@ void main_loop() {
 
     begin_draw(TEXTURE_2D_UNLIT, false);
 
-    draw_gui(&player, &hotbar, &hotbar_arrow, item_textures, &f);
+    player_draw_gui(&player, &hotbar, &hotbar_arrow, item_textures, &f);
+    player_draw_inventory(&player, &inventory, item_textures, &hotbar_arrow, &f);
 
     begin_draw(TEXT, false);
 
