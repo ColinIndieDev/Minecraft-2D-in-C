@@ -23,25 +23,42 @@ typedef struct {
 } slot;
 
 typedef struct {
-    tilemap status_icons_bg;
-    tilemap status_icons;
     slot hotbar[9];
+    u32 hotbar_selected;
+    b8 enabled;
+} inventory_t;
+
+typedef struct {
+    tilemap icons_bg;
+    tilemap icons;
+    f32 health;
+    f32 hunger;
+} stats_t;
+
+typedef struct {
+    vec2f block;
+    f32 block_dt;
+    f32 timer;
+} mining_t;
+
+typedef struct {
     vec2f pos;
     vec2f size;
     vec2f vel;
-    vec2f block_mining;
-    u32 hotbar_selected;
     f32 jmp_force;
     f32 gravity;
     f32 move_speed;
     f32 max_fall_speed;
-    f32 block_mining_dt;
-    f32 block_mining_timer;
-    f32 health;
-    f32 hunger;
     b8 ground;
-    b8 in_inventory;
+} physical_attribs_t;
+
+typedef struct {
+    physical_attribs_t attribs;
+    mining_t mining;
+    stats_t stats;
+    inventory_t inventory;
 } player_t;
+
 
 void player_update(player_t *player, chunk *chunks, block_data_t *block_data,
                    vec_item_drop *drops);

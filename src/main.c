@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #define CPL_IMPLEMENTATION
 #define CPRNG_IMPL
 #ifndef __EMSCRIPTEN__
@@ -19,21 +20,32 @@ EXTERN_BLOCKS_H_VARIABLES
 EXTERN_ITEMS_H_VARIABLES
 EXTERN_TEXTURES_H_VARIABLES
 
-player_t player = {.pos = VEC2F(0, 0),
-                   .size = VEC2F(0.5f * BLOCK_SIZE, 1.75f * BLOCK_SIZE),
-                   .vel = VEC2F(0, 0),
-                   .ground = true,
-                   .jmp_force = 450.0f,
-                   .gravity = 900.0f,
-                   .move_speed = PLAYER_BASE_SPEED,
-                   .max_fall_speed = 1100.0f,
-                   .block_mining = VEC2F(-1, -1),
-                   .block_mining_dt = 0.0f,
-                   .block_mining_timer = 0.0f,
-                   .hotbar_selected = 0,
-                   .health = 20,
-                   .hunger = 20,
-                   .in_inventory = false};
+player_t player = {
+    .attribs = {
+        .pos = VEC2F(0, 0),
+        .size = VEC2F(0.5f * BLOCK_SIZE, 1.75f * BLOCK_SIZE),
+        .vel = VEC2F(0, 0),
+        .ground = true,
+        .jmp_force = 450.0f,
+        .gravity = 900.0f,
+        .move_speed = PLAYER_BASE_SPEED,
+        .max_fall_speed = 1100.0f
+    },
+    .mining = {
+        .block = VEC2F(-1, -1), 
+        .block_dt = 0.0f, 
+        .timer = 0.0f
+    },
+    .stats = {
+        .health = 20, 
+        .hunger = 20
+    },
+    .inventory = {
+        .hotbar_selected = 0, 
+        .enabled = false
+    }
+};
+
 map_noise_t map_noise;
 chunk c[MAP_SIZE];
 VEC_IMPL(item_drop, vec_item_drop)
@@ -64,13 +76,13 @@ int main(void) {
 void init_player() {
     vec_item_drop_reserve(&item_drops, 10);
     for (u32 i = 0; i < 9; i++) {
-        player.hotbar[i] = (slot){ITEM_NONE, 0};
+        player.inventory.hotbar[i] = (slot){ITEM_NONE, 0};
     }
-    create_tilemap(&player.status_icons, VEC2F(9, 9));
-    tilemap_load_texture(&player.status_icons, "assets/images/gui/icons.png",
+    create_tilemap(&player.stats.icons, VEC2F(9, 9));
+    tilemap_load_texture(&player.stats.icons, "assets/images/gui/icons.png",
                          FILTER_NEAREST);
-    create_tilemap(&player.status_icons_bg, VEC2F(9, 9));
-    tilemap_load_texture(&player.status_icons_bg, "assets/images/gui/icons.png",
+    create_tilemap(&player.stats.icons_bg, VEC2F(9, 9));
+    tilemap_load_texture(&player.stats.icons_bg, "assets/images/gui/icons.png",
                          FILTER_NEAREST);
 }
 
@@ -136,10 +148,10 @@ void main_loop() {
 
     player_draw(&player);
 
-    if (!vec2f_cmp(player.block_mining, VEC2F(-1, -1))) {
-        draw_rect(player.block_mining,
-                  VEC2F((get_time() - player.block_mining_timer) /
-                            player.block_mining_dt * BLOCK_SIZE,
+    if (!vec2f_cmp(player.mining.block, VEC2F(-1, -1))) {
+        draw_rect(player.mining.block,
+                  VEC2F((get_time() - player.mining.timer) /
+                            player.mining.block_dt * BLOCK_SIZE,
                         BLOCK_SIZE),
                   RGBA(255, 255, 255, 125), 0);
     }
@@ -166,12 +178,13 @@ void main_loop() {
     begin_draw(TEXTURE_2D_UNLIT, false);
 
     player_draw_gui(&player, &hotbar, &hotbar_arrow, item_textures, &f);
-    player_draw_inventory(&player, &inventory, item_textures, &hotbar_arrow, &f);
+    player_draw_inventory(&player, &inventory, item_textures, &hotbar_arrow,
+                          &f);
 
     begin_draw(TEXT, false);
 
-    draw_ui();
-    // display_details(&f);
+    // draw_ui();
+    display_details(&f);
 
     end_frame();
 }
@@ -192,8 +205,8 @@ void draw_ui() {
     {
         char txt[100];
         snprintf(txt, sizeof(txt), "X: %d Y: %d",
-                 (i32)player.pos.x / BLOCK_SIZE,
-                 MAX_CHUNK_HEIGHT - (i32)(player.pos.y / BLOCK_SIZE));
+                 (i32)player.attribs.pos.x / BLOCK_SIZE,
+                 MAX_CHUNK_HEIGHT - (i32)(player.attribs.pos.y / BLOCK_SIZE));
         draw_text_shadow(&f, txt, VEC2F(10, 110), 0.7f, WHITE, VEC2F(3, 3),
                          BLACK);
     }

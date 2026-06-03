@@ -150,7 +150,7 @@ i32 player_block_id_to_item_id(i32 block_id) {
 // }}}
 
 void player_draw(player_t *player) {
-    draw_rect(player->pos, player->size, RED, 0);
+    draw_rect(player->attribs.pos, player->attribs.size, RED, 0);
 }
 
 // IMPORTANT! if tilemap texture gets bigger, it is more vulnerable to precision
@@ -169,33 +169,33 @@ i32 player_get_block_type_id(block_data_t *block_data, vec2f uv) {
 // {{{ Controls Helper Functions
 
 void player_handle_movement(player_t *player) {
-    if (!player->in_inventory) {
+    if (!player->inventory.enabled) {
         if (is_key_down(KEY_A)) {
-            player->vel.x = -player->move_speed;
+            player->attribs.vel.x = -player->attribs.move_speed;
         } else if (is_key_down(KEY_D)) {
-            player->vel.x = player->move_speed;
+            player->attribs.vel.x = player->attribs.move_speed;
         } else {
-            player->vel.x = 0;
+            player->attribs.vel.x = 0;
         }
-        if (is_key_down(KEY_SPACE) && player->ground) {
-            player->vel.y = -player->jmp_force;
-            player->ground = false;
+        if (is_key_down(KEY_SPACE) && player->attribs.ground) {
+            player->attribs.vel.y = -player->attribs.jmp_force;
+            player->attribs.ground = false;
         }
     } else {
-        player->vel.x = 0;
+        player->attribs.vel.x = 0;
     }
-    player->vel.y += player->gravity * get_dt();
-    if (player->vel.y > player->max_fall_speed) {
-        player->vel.y = player->max_fall_speed;
+    player->attribs.vel.y += player->attribs.gravity * get_dt();
+    if (player->attribs.vel.y > player->attribs.max_fall_speed) {
+        player->attribs.vel.y = player->attribs.max_fall_speed;
     }
-    if (!player->in_inventory) {
+    if (!player->inventory.enabled) {
         if (is_key_down(KEY_LEFT_SHIFT)) {
-            player->move_speed = PLAYER_BASE_SPEED * 2;
+            player->attribs.move_speed = PLAYER_BASE_SPEED * 2;
         } else {
-            player->move_speed = PLAYER_BASE_SPEED;
+            player->attribs.move_speed = PLAYER_BASE_SPEED;
         }
     }
-    player->move_speed = CPM_CLAMP(player->move_speed, 10, 1000000);
+    player->attribs.move_speed = CPM_CLAMP(player->attribs.move_speed, 10, 1000000);
 }
 
 vec2f player_raycast_hit_tile(chunk *chunks, block_data_t *block_data,
@@ -286,7 +286,7 @@ void player_handle_block_placing(player_t *player, chunk *chunks,
                                  block_data_t *block_data, vec2f mouse_pos,
                                  vec2f mouse_pos_tilemap) {
     if (is_mouse_pressed(MOUSE_BUTTON_RIGHT)) {
-        if (vec2f_dist(&player->pos, &mouse_pos) >
+        if (vec2f_dist(&player->attribs.pos, &mouse_pos) >
             MINE_AND_PLACE_RANGE * BLOCK_SIZE) {
             return;
         }
@@ -295,18 +295,18 @@ void player_handle_block_placing(player_t *player, chunk *chunks,
             return;
         }
         u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
-        rect_collider player_collider = {.pos = player->pos,
-                                         .size = player->size};
+        rect_collider player_collider = {.pos = player->attribs.pos,
+                                         .size = player->attribs.size};
         rect_collider tile_collider = {.pos = mouse_pos_tilemap,
                                        .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)};
 
         i32 block_id = player_item_id_to_block_id(
-            player->hotbar[player->hotbar_selected].item);
+            player->inventory.hotbar[player->inventory.hotbar_selected].item);
         if (!check_collision_rects(player_collider, tile_collider) &&
             !tilemap_tile_exists(&chunks[idx].tiles, mouse_pos_tilemap) &&
             player_neighbor_blocks_exist(chunks, mouse_pos_tilemap, idx) &&
             block_id != -1 &&
-            player->hotbar[player->hotbar_selected].count > 0) {
+            player->inventory.hotbar[player->inventory.hotbar_selected].count > 0) {
             vec2f uv;
             if (tilemap_tile_exists(&chunks[idx].tiles_passable,
                                     mouse_pos_tilemap)) {
@@ -324,9 +324,9 @@ void player_handle_block_placing(player_t *player, chunk *chunks,
                     tilemap_check_collidable_tiles(
                         &chunks[idx].tiles, VEC2F(BLOCK_SIZE, BLOCK_SIZE));
 
-                    player->hotbar[player->hotbar_selected].count--;
-                    if (player->hotbar[player->hotbar_selected].count == 0) {
-                        player->hotbar[player->hotbar_selected].item =
+                    player->inventory.hotbar[player->inventory.hotbar_selected].count--;
+                    if (player->inventory.hotbar[player->inventory.hotbar_selected].count == 0) {
+                        player->inventory.hotbar[player->inventory.hotbar_selected].item =
                             ITEM_NONE;
                     }
                 }
@@ -343,9 +343,9 @@ void player_handle_block_placing(player_t *player, chunk *chunks,
                         &chunks[idx].tiles, VEC2F(BLOCK_SIZE, BLOCK_SIZE));
                 }
 
-                player->hotbar[player->hotbar_selected].count--;
-                if (player->hotbar[player->hotbar_selected].count == 0) {
-                    player->hotbar[player->hotbar_selected].item = ITEM_NONE;
+                player->inventory.hotbar[player->inventory.hotbar_selected].count--;
+                if (player->inventory.hotbar[player->inventory.hotbar_selected].count == 0) {
+                    player->inventory.hotbar[player->inventory.hotbar_selected].item = ITEM_NONE;
                 }
             }
         }
@@ -357,14 +357,14 @@ void player_handle_block_breaking(player_t *player, chunk *chunks,
                                   vec_item_drop *drops, vec2f mouse_pos,
                                   vec2f mouse_pos_tilemap) {
     if (is_mouse_released(MOUSE_BUTTON_LEFT)) {
-        player->block_mining = VEC2F(-1, -1);
-        player->block_mining_dt = 0.0f;
+        player->mining.block = VEC2F(-1, -1);
+        player->mining.block_dt = 0.0f;
     }
     if (is_mouse_down(MOUSE_BUTTON_LEFT)) {
-        if (vec2f_dist(&player->pos, &mouse_pos) >
+        if (vec2f_dist(&player->attribs.pos, &mouse_pos) >
             MINE_AND_PLACE_RANGE * BLOCK_SIZE) {
-            player->block_mining = VEC2F(-1, -1);
-            player->block_mining_dt = 0.0f;
+            player->mining.block = VEC2F(-1, -1);
+            player->mining.block_dt = 0.0f;
             return;
         }
         if (mouse_pos.x < 0 ||
@@ -373,13 +373,13 @@ void player_handle_block_breaking(player_t *player, chunk *chunks,
         }
         u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
         vec2f ray_dir =
-            VEC2F(mouse_pos.x - player->pos.x, mouse_pos.y - player->pos.y);
+            VEC2F(mouse_pos.x - player->attribs.pos.x, mouse_pos.y - player->attribs.pos.y);
         if (!vec2f_cmp(player_raycast_hit_tile(
-                           chunks, block_data, player->pos, ray_dir,
+                           chunks, block_data, player->attribs.pos, ray_dir,
                            MINE_AND_PLACE_RANGE * BLOCK_SIZE),
                        mouse_pos_tilemap)) {
-            player->block_mining = VEC2F(-1, -1);
-            player->block_mining_dt = 0.0f;
+            player->mining.block = VEC2F(-1, -1);
+            player->mining.block_dt = 0.0f;
             return;
         }
         vec2f uv;
@@ -392,19 +392,19 @@ void player_handle_block_breaking(player_t *player, chunk *chunks,
         }
         i32 block_id = player_get_block_type_id(block_data, uv);
 
-        if (!vec2f_cmp(mouse_pos_tilemap, player->block_mining)) {
-            player->block_mining = mouse_pos_tilemap;
-            player->block_mining_timer = get_time();
+        if (!vec2f_cmp(mouse_pos_tilemap, player->mining.block)) {
+            player->mining.block = mouse_pos_tilemap;
+            player->mining.timer = get_time();
 
             if (block_id == -1 || block_data[block_id].unbreakable) {
-                player->block_mining = VEC2F(-1, -1);
-                player->block_mining_dt = 0.0f;
+                player->mining.block = VEC2F(-1, -1);
+                player->mining.block_dt = 0.0f;
             } else {
-                player->block_mining_dt = block_data[block_id].base_mining_dt;
+                player->mining.block_dt = block_data[block_id].base_mining_dt;
             }
-        } else if (player->block_mining_timer + player->block_mining_dt <=
+        } else if (player->mining.timer + player->mining.block_dt <=
                        get_time() &&
-                   !vec2f_cmp(player->block_mining, VEC2F(-1, -1))) {
+                   !vec2f_cmp(player->mining.block, VEC2F(-1, -1))) {
             i32 item_id = player_block_id_to_item_id(block_id);
             if (item_id != -1 && item_id != ITEM_OAK_LEAVES &&
                 item_id != ITEM_GRASS) {
@@ -438,9 +438,9 @@ void player_handle_block_breaking(player_t *player, chunk *chunks,
                                                VEC2F(BLOCK_SIZE, BLOCK_SIZE));
             }
 
-            player->block_mining = VEC2F(-1, -1);
-            player->block_mining_dt = 0.0f;
-            player->block_mining_timer = 0.0f;
+            player->mining.block = VEC2F(-1, -1);
+            player->mining.block_dt = 0.0f;
+            player->mining.timer = 0.0f;
         }
     }
 }
@@ -450,15 +450,15 @@ void player_handle_item_drops(player_t *player, chunk *chunks,
                               vec2f mouse_pos_tilemap) {
     if (is_key_pressed(KEY_Q)) {
         vec_item_drop_push_back(drops, (item_drop){});
-        item_types type = player->hotbar[player->hotbar_selected].item;
+        item_types type = player->inventory.hotbar[player->inventory.hotbar_selected].item;
         u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
         if (type != ITEM_NONE &&
-            player->hotbar[player->hotbar_selected].count > 0 &&
+            player->inventory.hotbar[player->inventory.hotbar_selected].count > 0 &&
             !tilemap_tile_exists(&chunks[idx].tiles, mouse_pos_tilemap)) {
             item_drop_item(vec_item_drop_back(drops), type, mouse_pos);
-            player->hotbar[player->hotbar_selected].count--;
-            if (player->hotbar[player->hotbar_selected].count == 0) {
-                player->hotbar[player->hotbar_selected].item = ITEM_NONE;
+            player->inventory.hotbar[player->inventory.hotbar_selected].count--;
+            if (player->inventory.hotbar[player->inventory.hotbar_selected].count == 0) {
+                player->inventory.hotbar[player->inventory.hotbar_selected].item = ITEM_NONE;
             }
         }
     }
@@ -468,8 +468,8 @@ void player_handle_item_drops(player_t *player, chunk *chunks,
         for (u32 i = 0; i < drops->size; i++) {
             item_drop drop = drops->data[i];
             rect_collider drop_collider = {.pos = drop.pos, .size = drop.size};
-            rect_collider player_collider = {.pos = player->pos,
-                                             .size = player->size};
+            rect_collider player_collider = {.pos = player->attribs.pos,
+                                             .size = player->attribs.size};
 
             if (!check_collision_rects(player_collider, drop_collider)) {
                 drops->data[w++] = drops->data[i];
@@ -477,9 +477,9 @@ void player_handle_item_drops(player_t *player, chunk *chunks,
                 b8 item_picked_up = false;
                 for (u32 j = 0; j < 9; j++) {
                     item_types type = drop.type;
-                    if (player->hotbar[j].item == type &&
-                        player->hotbar[j].count < MAX_STACK_SIZE) {
-                        player->hotbar[j].count++;
+                    if (player->inventory.hotbar[j].item == type &&
+                        player->inventory.hotbar[j].count < MAX_STACK_SIZE) {
+                        player->inventory.hotbar[j].count++;
                         item_picked_up = true;
                         break;
                     }
@@ -487,10 +487,10 @@ void player_handle_item_drops(player_t *player, chunk *chunks,
                 if (!item_picked_up) {
                     for (u32 j = 0; j < 9; j++) {
                         item_types type = drop.type;
-                        if (player->hotbar[j].item == ITEM_NONE &&
-                            player->hotbar[j].count == 0) {
-                            player->hotbar[j].item = type;
-                            player->hotbar[j].count++;
+                        if (player->inventory.hotbar[j].item == ITEM_NONE &&
+                            player->inventory.hotbar[j].count == 0) {
+                            player->inventory.hotbar[j].item = type;
+                            player->inventory.hotbar[j].count++;
                             item_picked_up = true;
                             break;
                         }
@@ -519,31 +519,31 @@ void player_handle_item_drops(player_t *player, chunk *chunks,
 
 void player_handle_hotbar(player_t *player) {
     if (is_key_down(KEY_1)) {
-        player->hotbar_selected = 0;
+        player->inventory.hotbar_selected = 0;
     }
     if (is_key_down(KEY_2)) {
-        player->hotbar_selected = 1;
+        player->inventory.hotbar_selected = 1;
     }
     if (is_key_down(KEY_3)) {
-        player->hotbar_selected = 2;
+        player->inventory.hotbar_selected = 2;
     }
     if (is_key_down(KEY_4)) {
-        player->hotbar_selected = 3;
+        player->inventory.hotbar_selected = 3;
     }
     if (is_key_down(KEY_5)) {
-        player->hotbar_selected = 4;
+        player->inventory.hotbar_selected = 4;
     }
     if (is_key_down(KEY_6)) {
-        player->hotbar_selected = 5;
+        player->inventory.hotbar_selected = 5;
     }
     if (is_key_down(KEY_7)) {
-        player->hotbar_selected = 6;
+        player->inventory.hotbar_selected = 6;
     }
     if (is_key_down(KEY_8)) {
-        player->hotbar_selected = 7;
+        player->inventory.hotbar_selected = 7;
     }
     if (is_key_down(KEY_9)) {
-        player->hotbar_selected = 8;
+        player->inventory.hotbar_selected = 8;
     }
 }
 
@@ -552,8 +552,8 @@ void player_handle_hotbar(player_t *player) {
 void player_handle_controls(player_t *player, chunk *chunks,
                             block_data_t *block_data, vec_item_drop *drops) {
     get_cam_2D()->pos = VEC2F(
-        player->pos.x - (get_screen_width() * (1 / get_cam_2D()->zoom) * 0.5f),
-        player->pos.y -
+        player->attribs.pos.x - (get_screen_width() * (1 / get_cam_2D()->zoom) * 0.5f),
+        player->attribs.pos.y -
             (get_screen_height() * (1 / get_cam_2D()->zoom) * 0.5f));
     if (is_key_down(KEY_H)) {
         get_cam_2D()->zoom += 2 * get_dt();
@@ -568,11 +568,11 @@ void player_handle_controls(player_t *player, chunk *chunks,
     }
 
     if (is_key_pressed(KEY_E)) {
-        player->in_inventory = !player->in_inventory;
+        player->inventory.enabled = !player->inventory.enabled;
     }
 
     player_handle_movement(player);
-    if (!player->in_inventory) {
+    if (!player->inventory.enabled) {
         player_handle_hotbar(player);
         vec2f mouse_pos = get_screen_to_world_2D(get_mouse_pos());
         vec2f mouse_pos_tilemap =
@@ -589,9 +589,9 @@ void player_handle_controls(player_t *player, chunk *chunks,
 }
 
 void player_move_and_collide(player_t *player, chunk *chunks) {
-    player->pos.x += player->vel.x * get_dt();
+    player->attribs.pos.x += player->attribs.vel.x * get_dt();
 
-    i32 idx = (i32)player->pos.x / (CHUNK_SIZE * BLOCK_SIZE);
+    i32 idx = (i32)player->attribs.pos.x / (CHUNK_SIZE * BLOCK_SIZE);
 
     if (idx < 0 || idx >= MAP_SIZE) {
         return;
@@ -611,29 +611,29 @@ void player_move_and_collide(player_t *player, chunk *chunks) {
             vec2f tile_pos =
                 VEC2F(chunks[idx + i].tiles.renderer.vertices[(u64)t * 6].x,
                       chunks[idx + i].tiles.renderer.vertices[(u64)t * 6].y);
-            if (player->pos.y + player->size.y <= tile_pos.y) {
+            if (player->attribs.pos.y + player->attribs.size.y <= tile_pos.y) {
                 continue;
             }
-            if (player->pos.y >= tile_pos.y + BLOCK_SIZE) {
+            if (player->attribs.pos.y >= tile_pos.y + BLOCK_SIZE) {
                 continue;
             }
-            rect_collider player_collider = {.pos = player->pos,
-                                             .size = player->size};
+            rect_collider player_collider = {.pos = player->attribs.pos,
+                                             .size = player->attribs.size};
             rect_collider tile_collider = {
                 .pos = tile_pos, .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)};
 
             if (check_collision_rects(player_collider, tile_collider)) {
-                if (player->vel.x > 0) {
-                    player->pos.x = tile_pos.x - player->size.x;
-                } else if (player->vel.x < 0) {
-                    player->pos.x = tile_pos.x + BLOCK_SIZE;
+                if (player->attribs.vel.x > 0) {
+                    player->attribs.pos.x = tile_pos.x - player->attribs.size.x;
+                } else if (player->attribs.vel.x < 0) {
+                    player->attribs.pos.x = tile_pos.x + BLOCK_SIZE;
                 }
-                player->vel.x = 0;
+                player->attribs.vel.x = 0;
             }
         }
     }
-    player->pos.y += player->vel.y * get_dt();
-    player->ground = false;
+    player->attribs.pos.y += player->attribs.vel.y * get_dt();
+    player->attribs.ground = false;
     for (i32 i = -1; i < 2; i++) {
         if (idx == 0 && i == -1) {
             continue;
@@ -648,28 +648,28 @@ void player_move_and_collide(player_t *player, chunk *chunks) {
             vec2f tile_pos =
                 VEC2F(chunks[idx + i].tiles.renderer.vertices[(u64)t * 6].x,
                       chunks[idx + i].tiles.renderer.vertices[(u64)t * 6].y);
-            if (player->pos.x + player->size.x <= tile_pos.x) {
+            if (player->attribs.pos.x + player->attribs.size.x <= tile_pos.x) {
                 continue;
             }
-            if (player->pos.x >= tile_pos.x + BLOCK_SIZE) {
+            if (player->attribs.pos.x >= tile_pos.x + BLOCK_SIZE) {
                 continue;
             }
-            rect_collider player_collider = {.pos = player->pos,
-                                             .size = player->size};
+            rect_collider player_collider = {.pos = player->attribs.pos,
+                                             .size = player->attribs.size};
             rect_collider tile_collider = {
                 .pos = tile_pos, .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)};
 
             if (check_collision_rects(player_collider, tile_collider)) {
-                if (player->vel.y > 0) {
-                    player->pos.y = tile_pos.y - player->size.y;
-                    player->ground = true;
-                } else if (player->vel.y < 0) {
-                    player->pos.y = tile_pos.y + BLOCK_SIZE +
+                if (player->attribs.vel.y > 0) {
+                    player->attribs.pos.y = tile_pos.y - player->attribs.size.y;
+                    player->attribs.ground = true;
+                } else if (player->attribs.vel.y < 0) {
+                    player->attribs.pos.y = tile_pos.y + BLOCK_SIZE +
                                     0.1f; // Prevent glitching through
                                           // blocks if jumping into them
                                           // below by slightly offsetting
                 }
-                player->vel.y = 0;
+                player->attribs.vel.y = 0;
             }
         }
     }
@@ -688,7 +688,7 @@ void player_set_spawn_point(player_t *player, fnl_state *terrain) {
         (fnlGetNoise2D(terrain, (f32)((u32)(0 * CHUNK_SIZE)), 0) + 1.0f) * 0.5f;
     u32 height =
         MIN_TERRAIN_HEIGHT + (noise * (MAX_FIELD_HEIGHT - MIN_TERRAIN_HEIGHT));
-    player->pos.y = (f32)(MAX_CHUNK_HEIGHT - height) * BLOCK_SIZE;
+    player->attribs.pos.y = (f32)(MAX_CHUNK_HEIGHT - height) * BLOCK_SIZE;
 }
 
 // {{{ GUI
@@ -696,7 +696,7 @@ void player_set_spawn_point(player_t *player, fnl_state *terrain) {
 void player_draw_inventory(player_t *player, texture *inventory,
                            texture *item_textures, texture *hotbar_arrow,
                            font *f) {
-    if (player->in_inventory) {
+    if (player->inventory.enabled) {
         begin_draw(SHAPE_2D_UNLIT, false);
         draw_rect(VEC2F(0, 0), get_screen_size(), RGBA(0, 0, 0, 125), 0);
         begin_draw(TEXTURE_2D_UNLIT, false);
@@ -708,19 +708,19 @@ void player_draw_inventory(player_t *player, texture *inventory,
         vec2f first_hotbar_slot =
             VEC2F(pos.x + (4 * 4), pos.y + size.y - (24 * 4));
         for (u32 i = 0; i < 9; i++) {
-            if (player->hotbar[i].count == 0 ||
-                player->hotbar[i].item == ITEM_NONE) {
+            if (player->inventory.hotbar[i].count == 0 ||
+                player->inventory.hotbar[i].item == ITEM_NONE) {
                 continue;
             }
             vec2f arrow_size =
                 VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
             vec2f item_size =
-                VEC2F(item_textures[player->hotbar[i].item].size.x * 4,
-                      item_textures[player->hotbar[i].item].size.y * 4);
+                VEC2F(item_textures[player->inventory.hotbar[i].item].size.x * 4,
+                      item_textures[player->inventory.hotbar[i].item].size.y * 4);
             vec2f slot_pos = VEC2F(first_hotbar_slot.x + (arrow_size.x * 0.5f) -
                                        (item_size.x * 0.5f) + ((18 * 4) * i),
                                    first_hotbar_slot.y);
-            draw_texture2D(&item_textures[player->hotbar[i].item], slot_pos,
+            draw_texture2D(&item_textures[player->inventory.hotbar[i].item], slot_pos,
                            item_size, WHITE, 0);
         }
 
@@ -729,19 +729,19 @@ void player_draw_inventory(player_t *player, texture *inventory,
             vec2f arrow_size =
                 VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
             vec2f item_size =
-                VEC2F(item_textures[player->hotbar[i].item].size.x * 4,
-                      item_textures[player->hotbar[i].item].size.y * 4);
+                VEC2F(item_textures[player->inventory.hotbar[i].item].size.x * 4,
+                      item_textures[player->inventory.hotbar[i].item].size.y * 4);
             f32 offset_y = 20.0f;
             vec2f slot_pos = VEC2F(first_hotbar_slot.x + (arrow_size.x * 0.5f) -
                                        (item_size.x * 0.5f) + ((18 * 4) * i),
                                    first_hotbar_slot.y);
-            if (player->hotbar[i].count <= 1 ||
-                player->hotbar[i].item == ITEM_NONE) {
+            if (player->inventory.hotbar[i].count <= 1 ||
+                player->inventory.hotbar[i].item == ITEM_NONE) {
                 continue;
             }
 
             char number[3];
-            snprintf(number, 3, "%d", player->hotbar[i].count);
+            snprintf(number, 3, "%d", player->inventory.hotbar[i].count);
             draw_text_shadow(f, number,
                              VEC2F(slot_pos.x + arrow_size.x - (12 * 4),
                                    slot_pos.y + arrow_size.y - (12 * 4)),
@@ -752,7 +752,7 @@ void player_draw_inventory(player_t *player, texture *inventory,
 
 void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
                      texture *item_textures, font *f) {
-    if (!player->in_inventory) {
+    if (!player->inventory.enabled) {
         begin_draw(TEXTURE_2D_UNLIT, false);
 
         vec2f size = VEC2F(hotbar->size.x * 4, hotbar->size.y * 4);
@@ -766,7 +766,7 @@ void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
         draw_texture2D(
             hotbar_arrow,
             VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f) +
-                      ((arrow_size.x - (4 * 4)) * player->hotbar_selected) - 4,
+                      ((arrow_size.x - (4 * 4)) * player->inventory.hotbar_selected) - 4,
                   get_screen_height() - size.y - offset_y - 4),
             arrow_size, WHITE, 0);
 
@@ -775,26 +775,26 @@ void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
                 VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f) +
                           ((arrow_size.x - (4 * 4)) * i) - 4,
                       get_screen_height() - size.y - offset_y - 4);
-            if (player->hotbar[i].count == 0 ||
-                player->hotbar[i].item == ITEM_NONE) {
+            if (player->inventory.hotbar[i].count == 0 ||
+                player->inventory.hotbar[i].item == ITEM_NONE) {
                 continue;
             }
             vec2f item_size =
-                VEC2F(item_textures[player->hotbar[i].item].size.x * 4,
-                      item_textures[player->hotbar[i].item].size.y * 4);
+                VEC2F(item_textures[player->inventory.hotbar[i].item].size.x * 4,
+                      item_textures[player->inventory.hotbar[i].item].size.y * 4);
             draw_texture2D(
-                &item_textures[player->hotbar[i].item],
+                &item_textures[player->inventory.hotbar[i].item],
                 VEC2F(slot_pos.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f),
                       slot_pos.y + (arrow_size.y * 0.5f) -
                           (item_size.y * 0.5f)),
                 item_size, WHITE, 0);
         }
 
-        tilemap_begin_editing(&player->status_icons_bg);
+        tilemap_begin_editing(&player->stats.icons_bg);
         f32 icon_offset = 10.0f;
         for (u32 i = 0; i < 10; i++) {
             tilemap_add_tile(
-                &player->status_icons_bg,
+                &player->stats.icons_bg,
                 VEC2F(hotbar_pos.x + ((ICON_PIXEL_SIZE) * 4 * i),
                       hotbar_pos.y - (ICON_PIXEL_SIZE * 4) - icon_offset),
                 VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4), ICON_HEART_BG);
@@ -806,7 +806,7 @@ void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
 
         f32 hunger_bar_offset = 10.0f * 4;
         for (u32 i = 0; i < 10; i++) {
-            tilemap_add_tile(&player->status_icons_bg,
+            tilemap_add_tile(&player->stats.icons_bg,
                              VEC2F(last_heart_pos.x + (ICON_PIXEL_SIZE * 4) +
                                        ((ICON_PIXEL_SIZE - 1) * 4 * i) +
                                        hunger_bar_offset,
@@ -815,45 +815,45 @@ void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
                              ICON_HUNGER_BG);
         }
 
-        tilemap_begin_editing(&player->status_icons);
-        for (u32 i = 0; i < (u32)(player->health * 0.5f); i++) {
+        tilemap_begin_editing(&player->stats.icons);
+        for (u32 i = 0; i < (u32)(player->stats.health * 0.5f); i++) {
             tilemap_add_tile(
-                &player->status_icons,
+                &player->stats.icons,
                 VEC2F(hotbar_pos.x + ((ICON_PIXEL_SIZE) * 4 * i),
                       hotbar_pos.y - (ICON_PIXEL_SIZE * 4) - icon_offset),
                 VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4), ICON_HEART);
         }
-        if (cpm_modf(player->health, 2.0f) == 1.0f) {
+        if (cpm_modf(player->stats.health, 2.0f) == 1.0f) {
             tilemap_add_tile(
-                &player->status_icons,
+                &player->stats.icons,
                 VEC2F(hotbar_pos.x + ((ICON_PIXEL_SIZE) * 4 *
-                                      (u32)(player->health * 0.5f)),
+                                      (u32)(player->stats.health * 0.5f)),
                       hotbar_pos.y - (ICON_PIXEL_SIZE * 4) - icon_offset),
                 VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4),
                 ICON_HEART_HALF);
         }
 
-        for (u32 i = 0; i < (u32)(player->hunger * 0.5f); i++) {
+        for (u32 i = 0; i < (u32)(player->stats.hunger * 0.5f); i++) {
             tilemap_add_tile(
-                &player->status_icons,
+                &player->stats.icons,
                 VEC2F(last_heart_pos.x + (ICON_PIXEL_SIZE * 4) +
                           ((ICON_PIXEL_SIZE - 1) * 4 * i) + hunger_bar_offset,
                       last_heart_pos.y),
                 VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4), ICON_HUNGER);
         }
-        if (cpm_modf(player->hunger, 2.0f) == 1.0f) {
-            tilemap_add_tile(&player->status_icons,
+        if (cpm_modf(player->stats.hunger, 2.0f) == 1.0f) {
+            tilemap_add_tile(&player->stats.icons,
                              VEC2F(last_heart_pos.x + (ICON_PIXEL_SIZE * 4) +
                                        ((ICON_PIXEL_SIZE - 1) * 4 *
-                                        (u32)(player->hunger * 0.5f)) +
+                                        (u32)(player->stats.hunger * 0.5f)) +
                                        hunger_bar_offset,
                                    last_heart_pos.y),
                              VEC2F(ICON_PIXEL_SIZE * 4, ICON_PIXEL_SIZE * 4),
                              ICON_HUNGER_HALF);
         }
 
-        tilemap_draw(&player->status_icons_bg, WHITE);
-        tilemap_draw(&player->status_icons, WHITE);
+        tilemap_draw(&player->stats.icons_bg, WHITE);
+        tilemap_draw(&player->stats.icons, WHITE);
 
         begin_draw(TEXT, false);
 
@@ -862,13 +862,13 @@ void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
                 VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f) +
                           ((arrow_size.x - (4 * 4)) * i) - 4,
                       get_screen_height() - size.y - offset_y - 4);
-            if (player->hotbar[i].count <= 1 ||
-                player->hotbar[i].item == ITEM_NONE) {
+            if (player->inventory.hotbar[i].count <= 1 ||
+                player->inventory.hotbar[i].item == ITEM_NONE) {
                 continue;
             }
 
             char number[3];
-            snprintf(number, 3, "%d", player->hotbar[i].count);
+            snprintf(number, 3, "%d", player->inventory.hotbar[i].count);
             draw_text_shadow(f, number,
                              VEC2F(slot_pos.x + arrow_size.x - (9 * 4),
                                    slot_pos.y + arrow_size.y - (9 * 4)),
