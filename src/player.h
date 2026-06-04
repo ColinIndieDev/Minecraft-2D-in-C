@@ -60,9 +60,9 @@ typedef struct {
 } player_t;
 
 
-void player_update(player_t *player, chunk *chunks, block_data_t *block_data,
-                   vec_item_drop *drops);
-void player_set_spawn_point(player_t *player, fnl_state *terrain);
+void player_update(player_t *player, chunk_map *chunks, block_data_t *block_data,
+                   vec_item_drop *drops, u32 left_most_chunk, u32 right_most_chunk);
+u32 player_set_spawn_point(player_t *player, fnl_state *terrain);
 void player_draw(player_t *player);
 void player_draw_inventory(player_t *player, texture *inventory, texture *item_textures, texture *hotbar_arrow, font *f);
 void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,

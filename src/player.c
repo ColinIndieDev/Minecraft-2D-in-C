@@ -195,10 +195,11 @@ void player_handle_movement(player_t *player) {
             player->attribs.move_speed = PLAYER_BASE_SPEED;
         }
     }
-    player->attribs.move_speed = CPM_CLAMP(player->attribs.move_speed, 10, 1000000);
+    player->attribs.move_speed =
+        CPM_CLAMP(player->attribs.move_speed, 10, 1000000);
 }
 
-vec2f player_raycast_hit_tile(chunk *chunks, block_data_t *block_data,
+vec2f player_raycast_hit_tile(chunk_map *chunks, block_data_t *block_data,
                               vec2f origin, vec2f d, f32 max_dist) {
     vec2f dir = vec2f_norm(d);
     vec2f tile = VEC2F(cpm_floorf(origin.x / BLOCK_SIZE) * BLOCK_SIZE,
@@ -241,13 +242,16 @@ vec2f player_raycast_hit_tile(chunk *chunks, block_data_t *block_data,
         }
 
         if (chunk_idx >= 0 && chunk_idx < MAP_SIZE) {
-            vec2f uv =
-                tilemap_get_tile_uv(&chunks[chunk_idx].tiles_passable, tile);
+            vec2f uv = tilemap_get_tile_uv(
+                &(*chunk_map_get(chunks, chunk_idx))->tiles_passable, tile);
             vec2f water_uv = block_data[BLOCK_WATER].uv;
             b8 is_water = CPM_ABS(uv.x - water_uv.x) < UV_EPSILON &&
                           CPM_ABS(uv.y - water_uv.y) < UV_EPSILON;
-            if (tilemap_tile_exists(&chunks[chunk_idx].tiles, tile) ||
-                (tilemap_tile_exists(&chunks[chunk_idx].tiles_passable, tile) &&
+            if (tilemap_tile_exists(&(*chunk_map_get(chunks, chunk_idx))->tiles,
+                                    tile) ||
+                (tilemap_tile_exists(
+                     &(*chunk_map_get(chunks, chunk_idx))->tiles_passable,
+                     tile) &&
                  !is_water)) {
                 return tile;
             }
@@ -257,22 +261,23 @@ vec2f player_raycast_hit_tile(chunk *chunks, block_data_t *block_data,
     return VEC2F(-1, -1);
 }
 
-b8 player_neighbor_blocks_exist(chunk *chunks, vec2f mouse_pos_tilemap,
-                                u32 idx) {
+b8 player_neighbor_blocks_exist(chunk_map *chunks, vec2f mouse_pos_tilemap,
+                                u32 idx, u32 left_most_chunk,
+                                u32 right_most_chunk) {
     vec2f neighbor_blocks[4] = {
         {mouse_pos_tilemap.x + BLOCK_SIZE, mouse_pos_tilemap.y},
         {mouse_pos_tilemap.x - BLOCK_SIZE, mouse_pos_tilemap.y},
         {mouse_pos_tilemap.x, mouse_pos_tilemap.y + BLOCK_SIZE},
         {mouse_pos_tilemap.x, mouse_pos_tilemap.y - BLOCK_SIZE}};
     for (i32 c = -1; c < 2; c++) {
-        if (c == -1 && idx == 0) {
+        if (c == -1 && idx == left_most_chunk) {
             continue;
         }
-        if (c == 1 && idx == MAP_SIZE - 1) {
+        if (c == 1 && idx == right_most_chunk) {
             continue;
         }
         for (u32 i = 0; i < 4; i++) {
-            if (tilemap_tile_exists(&chunks[idx + c].tiles,
+            if (tilemap_tile_exists(&(*chunk_map_get(chunks, idx + c))->tiles,
                                     neighbor_blocks[i])) {
                 return true;
                 break;
@@ -282,16 +287,18 @@ b8 player_neighbor_blocks_exist(chunk *chunks, vec2f mouse_pos_tilemap,
     return false;
 }
 
-void player_handle_block_placing(player_t *player, chunk *chunks,
+void player_handle_block_placing(player_t *player, chunk_map *chunks,
                                  block_data_t *block_data, vec2f mouse_pos,
-                                 vec2f mouse_pos_tilemap) {
+                                 vec2f mouse_pos_tilemap, u32 left_most_chunk,
+                                 u32 right_most_chunk) {
     if (is_mouse_pressed(MOUSE_BUTTON_RIGHT)) {
         if (vec2f_dist(&player->attribs.pos, &mouse_pos) >
             MINE_AND_PLACE_RANGE * BLOCK_SIZE) {
             return;
         }
-        if (mouse_pos.x < 0 ||
-            mouse_pos.x > MAP_SIZE * CHUNK_SIZE * BLOCK_SIZE) {
+        if (mouse_pos.x < (f32)left_most_chunk * CHUNK_SIZE * BLOCK_SIZE ||
+            mouse_pos.x >
+                (f32)(right_most_chunk + 1) * CHUNK_SIZE * BLOCK_SIZE) {
             return;
         }
         u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
@@ -303,59 +310,78 @@ void player_handle_block_placing(player_t *player, chunk *chunks,
         i32 block_id = player_item_id_to_block_id(
             player->inventory.hotbar[player->inventory.hotbar_selected].item);
         if (!check_collision_rects(player_collider, tile_collider) &&
-            !tilemap_tile_exists(&chunks[idx].tiles, mouse_pos_tilemap) &&
-            player_neighbor_blocks_exist(chunks, mouse_pos_tilemap, idx) &&
+            !tilemap_tile_exists(&(*chunk_map_get(chunks, idx))->tiles,
+                                 mouse_pos_tilemap) &&
+            player_neighbor_blocks_exist(chunks, mouse_pos_tilemap, idx,
+                                         left_most_chunk, right_most_chunk) &&
             block_id != -1 &&
-            player->inventory.hotbar[player->inventory.hotbar_selected].count > 0) {
+            player->inventory.hotbar[player->inventory.hotbar_selected].count >
+                0) {
             vec2f uv;
-            if (tilemap_tile_exists(&chunks[idx].tiles_passable,
-                                    mouse_pos_tilemap)) {
-                uv = tilemap_get_tile_uv(&chunks[idx].tiles_passable,
-                                         mouse_pos_tilemap);
+            if (tilemap_tile_exists(
+                    &(*chunk_map_get(chunks, idx))->tiles_passable,
+                    mouse_pos_tilemap)) {
+                uv = tilemap_get_tile_uv(
+                    &(*chunk_map_get(chunks, idx))->tiles_passable,
+                    mouse_pos_tilemap);
                 vec2f water_uv = block_data[BLOCK_WATER].uv;
                 b8 is_water = CPM_ABS(uv.x - water_uv.x) < UV_EPSILON &&
                               CPM_ABS(uv.y - water_uv.y) < UV_EPSILON;
                 if (is_water && !block_data[block_id].passable) {
-                    tilemap_delete_tile(&chunks[idx].tiles_passable,
-                                        mouse_pos_tilemap);
-                    tilemap_add_tile(&chunks[idx].tiles, mouse_pos_tilemap,
+                    tilemap_delete_tile(
+                        &(*chunk_map_get(chunks, idx))->tiles_passable,
+                        mouse_pos_tilemap);
+                    tilemap_add_tile(&(*chunk_map_get(chunks, idx))->tiles,
+                                     mouse_pos_tilemap,
                                      VEC2F(BLOCK_SIZE, BLOCK_SIZE),
                                      block_data[block_id].uv);
                     tilemap_check_collidable_tiles(
-                        &chunks[idx].tiles, VEC2F(BLOCK_SIZE, BLOCK_SIZE));
+                        &(*chunk_map_get(chunks, idx))->tiles,
+                        VEC2F(BLOCK_SIZE, BLOCK_SIZE));
 
-                    player->inventory.hotbar[player->inventory.hotbar_selected].count--;
-                    if (player->inventory.hotbar[player->inventory.hotbar_selected].count == 0) {
-                        player->inventory.hotbar[player->inventory.hotbar_selected].item =
-                            ITEM_NONE;
+                    player->inventory.hotbar[player->inventory.hotbar_selected]
+                        .count--;
+                    if (player->inventory
+                            .hotbar[player->inventory.hotbar_selected]
+                            .count == 0) {
+                        player->inventory
+                            .hotbar[player->inventory.hotbar_selected]
+                            .item = ITEM_NONE;
                     }
                 }
             } else {
                 if (block_data[block_id].passable) {
                     tilemap_add_tile(
-                        &chunks[idx].tiles_passable, mouse_pos_tilemap,
-                        VEC2F(BLOCK_SIZE, BLOCK_SIZE), block_data[block_id].uv);
+                        &(*chunk_map_get(chunks, idx))->tiles_passable,
+                        mouse_pos_tilemap, VEC2F(BLOCK_SIZE, BLOCK_SIZE),
+                        block_data[block_id].uv);
                 } else {
-                    tilemap_add_tile(&chunks[idx].tiles, mouse_pos_tilemap,
+                    tilemap_add_tile(&(*chunk_map_get(chunks, idx))->tiles,
+                                     mouse_pos_tilemap,
                                      VEC2F(BLOCK_SIZE, BLOCK_SIZE),
                                      block_data[block_id].uv);
                     tilemap_check_collidable_tiles(
-                        &chunks[idx].tiles, VEC2F(BLOCK_SIZE, BLOCK_SIZE));
+                        &(*chunk_map_get(chunks, idx))->tiles,
+                        VEC2F(BLOCK_SIZE, BLOCK_SIZE));
                 }
 
-                player->inventory.hotbar[player->inventory.hotbar_selected].count--;
-                if (player->inventory.hotbar[player->inventory.hotbar_selected].count == 0) {
-                    player->inventory.hotbar[player->inventory.hotbar_selected].item = ITEM_NONE;
+                player->inventory.hotbar[player->inventory.hotbar_selected]
+                    .count--;
+                if (player->inventory.hotbar[player->inventory.hotbar_selected]
+                        .count == 0) {
+                    player->inventory.hotbar[player->inventory.hotbar_selected]
+                        .item = ITEM_NONE;
                 }
             }
         }
     }
 }
 
-void player_handle_block_breaking(player_t *player, chunk *chunks,
+void player_handle_block_breaking(player_t *player, chunk_map *chunks,
                                   block_data_t *block_data,
                                   vec_item_drop *drops, vec2f mouse_pos,
-                                  vec2f mouse_pos_tilemap) {
+                                  vec2f mouse_pos_tilemap, u32 left_most_chunk,
+                                  u32 right_most_chunk) {
     if (is_mouse_released(MOUSE_BUTTON_LEFT)) {
         player->mining.block = VEC2F(-1, -1);
         player->mining.block_dt = 0.0f;
@@ -367,13 +393,14 @@ void player_handle_block_breaking(player_t *player, chunk *chunks,
             player->mining.block_dt = 0.0f;
             return;
         }
-        if (mouse_pos.x < 0 ||
-            mouse_pos.x > MAP_SIZE * CHUNK_SIZE * BLOCK_SIZE) {
+        if (mouse_pos.x < (f32)left_most_chunk * CHUNK_SIZE * BLOCK_SIZE ||
+            mouse_pos.x >
+                (f32)(right_most_chunk + 1) * CHUNK_SIZE * BLOCK_SIZE) {
             return;
         }
         u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
-        vec2f ray_dir =
-            VEC2F(mouse_pos.x - player->attribs.pos.x, mouse_pos.y - player->attribs.pos.y);
+        vec2f ray_dir = VEC2F(mouse_pos.x - player->attribs.pos.x,
+                              mouse_pos.y - player->attribs.pos.y);
         if (!vec2f_cmp(player_raycast_hit_tile(
                            chunks, block_data, player->attribs.pos, ray_dir,
                            MINE_AND_PLACE_RANGE * BLOCK_SIZE),
@@ -383,12 +410,15 @@ void player_handle_block_breaking(player_t *player, chunk *chunks,
             return;
         }
         vec2f uv;
-        if (tilemap_tile_exists(&chunks[idx].tiles_passable,
+        if (tilemap_tile_exists(&(*chunk_map_get(chunks, idx))->tiles_passable,
                                 mouse_pos_tilemap)) {
-            uv = tilemap_get_tile_uv(&chunks[idx].tiles_passable,
+            uv = tilemap_get_tile_uv(
+                &(*chunk_map_get(chunks, idx))->tiles_passable,
+                mouse_pos_tilemap);
+        } else if (tilemap_tile_exists(&(*chunk_map_get(chunks, idx))->tiles,
+                                       mouse_pos_tilemap)) {
+            uv = tilemap_get_tile_uv(&(*chunk_map_get(chunks, idx))->tiles,
                                      mouse_pos_tilemap);
-        } else if (tilemap_tile_exists(&chunks[idx].tiles, mouse_pos_tilemap)) {
-            uv = tilemap_get_tile_uv(&chunks[idx].tiles, mouse_pos_tilemap);
         }
         i32 block_id = player_get_block_type_id(block_data, uv);
 
@@ -427,15 +457,20 @@ void player_handle_block_breaking(player_t *player, chunk *chunks,
                 }
             }
 
-            if (tilemap_tile_exists(&chunks[idx].tiles_passable,
-                                    mouse_pos_tilemap)) {
-                tilemap_delete_tile(&chunks[idx].tiles_passable,
+            if (tilemap_tile_exists(
+                    &(*chunk_map_get(chunks, idx))->tiles_passable,
+                    mouse_pos_tilemap)) {
+                tilemap_delete_tile(
+                    &(*chunk_map_get(chunks, idx))->tiles_passable,
+                    mouse_pos_tilemap);
+            } else if (tilemap_tile_exists(
+                           &(*chunk_map_get(chunks, idx))->tiles,
+                           mouse_pos_tilemap)) {
+                tilemap_delete_tile(&(*chunk_map_get(chunks, idx))->tiles,
                                     mouse_pos_tilemap);
-            } else if (tilemap_tile_exists(&chunks[idx].tiles,
-                                           mouse_pos_tilemap)) {
-                tilemap_delete_tile(&chunks[idx].tiles, mouse_pos_tilemap);
-                tilemap_check_collidable_tiles(&chunks[idx].tiles,
-                                               VEC2F(BLOCK_SIZE, BLOCK_SIZE));
+                tilemap_check_collidable_tiles(
+                    &(*chunk_map_get(chunks, idx))->tiles,
+                    VEC2F(BLOCK_SIZE, BLOCK_SIZE));
             }
 
             player->mining.block = VEC2F(-1, -1);
@@ -445,20 +480,29 @@ void player_handle_block_breaking(player_t *player, chunk *chunks,
     }
 }
 
-void player_handle_item_drops(player_t *player, chunk *chunks,
+void player_handle_item_drops(player_t *player, chunk_map *chunks,
                               vec_item_drop *drops, vec2f mouse_pos,
-                              vec2f mouse_pos_tilemap) {
+                              vec2f mouse_pos_tilemap, u32 left_most_chunk,
+                              u32 right_most_chunk) {
     if (is_key_pressed(KEY_Q)) {
         vec_item_drop_push_back(drops, (item_drop){});
-        item_types type = player->inventory.hotbar[player->inventory.hotbar_selected].item;
+        item_types type =
+            player->inventory.hotbar[player->inventory.hotbar_selected].item;
         u32 idx = (u32)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
+        if (idx < left_most_chunk || idx > right_most_chunk) {
+            return;
+        }
         if (type != ITEM_NONE &&
-            player->inventory.hotbar[player->inventory.hotbar_selected].count > 0 &&
-            !tilemap_tile_exists(&chunks[idx].tiles, mouse_pos_tilemap)) {
+            player->inventory.hotbar[player->inventory.hotbar_selected].count >
+                0 &&
+            !tilemap_tile_exists(&(*chunk_map_get(chunks, idx))->tiles,
+                                 mouse_pos_tilemap)) {
             item_drop_item(vec_item_drop_back(drops), type, mouse_pos);
             player->inventory.hotbar[player->inventory.hotbar_selected].count--;
-            if (player->inventory.hotbar[player->inventory.hotbar_selected].count == 0) {
-                player->inventory.hotbar[player->inventory.hotbar_selected].item = ITEM_NONE;
+            if (player->inventory.hotbar[player->inventory.hotbar_selected]
+                    .count == 0) {
+                player->inventory.hotbar[player->inventory.hotbar_selected]
+                    .item = ITEM_NONE;
             }
         }
     }
@@ -549,12 +593,14 @@ void player_handle_hotbar(player_t *player) {
 
 // }}}
 
-void player_handle_controls(player_t *player, chunk *chunks,
-                            block_data_t *block_data, vec_item_drop *drops) {
-    get_cam_2D()->pos = VEC2F(
-        player->attribs.pos.x - (get_screen_width() * (1 / get_cam_2D()->zoom) * 0.5f),
-        player->attribs.pos.y -
-            (get_screen_height() * (1 / get_cam_2D()->zoom) * 0.5f));
+void player_handle_controls(player_t *player, chunk_map *chunks,
+                            block_data_t *block_data, vec_item_drop *drops,
+                            u32 left_most_chunk, u32 right_most_chunk) {
+    get_cam_2D()->pos =
+        VEC2F(player->attribs.pos.x -
+                  (get_screen_width() * (1 / get_cam_2D()->zoom) * 0.5f),
+              player->attribs.pos.y -
+                  (get_screen_height() * (1 / get_cam_2D()->zoom) * 0.5f));
     if (is_key_down(KEY_H)) {
         get_cam_2D()->zoom += 2 * get_dt();
     }
@@ -580,94 +626,110 @@ void player_handle_controls(player_t *player, chunk *chunks,
                   (i32)mouse_pos.y - ((i32)mouse_pos.y % BLOCK_SIZE));
 
         player_handle_block_placing(player, chunks, block_data, mouse_pos,
-                                    mouse_pos_tilemap);
+                                    mouse_pos_tilemap, left_most_chunk,
+                                    right_most_chunk);
         player_handle_block_breaking(player, chunks, block_data, drops,
-                                     mouse_pos, mouse_pos_tilemap);
+                                     mouse_pos, mouse_pos_tilemap,
+                                     left_most_chunk, right_most_chunk);
         player_handle_item_drops(player, chunks, drops, mouse_pos,
-                                 mouse_pos_tilemap);
+                                 mouse_pos_tilemap, left_most_chunk,
+                                 right_most_chunk);
     }
 }
 
-void player_move_and_collide(player_t *player, chunk *chunks) {
-    player->attribs.pos.x += player->attribs.vel.x * get_dt();
+// TODO make move and collide better and not glitchy to get under the ground
 
+void player_move_and_collide(player_t *player, chunk_map *chunks,
+                             u32 left_most_chunk, u32 right_most_chunk) {
+    f32 dt = get_dt();
+    
+    player->attribs.pos.x += player->attribs.vel.x * dt;
     i32 idx = (i32)player->attribs.pos.x / (CHUNK_SIZE * BLOCK_SIZE);
 
-    if (idx < 0 || idx >= MAP_SIZE) {
+    if (idx < (i32)left_most_chunk || idx > (i32)right_most_chunk) {
         return;
     }
 
     for (i32 i = -1; i < 2; i++) {
-        if (idx == 0 && i == -1) {
+        i32 current_idx = idx + i;
+        if (current_idx < (i32)left_most_chunk || current_idx > (i32)right_most_chunk) {
             continue;
         }
-        if (idx == MAP_SIZE - 1 && i == 1) {
-            continue;
+
+        chunk **chunk_ptr = chunk_map_get(chunks, current_idx);
+        if (!chunk_ptr || !*chunk_ptr || !(*chunk_ptr)->ready) {
+            continue; 
         }
-        for (u32 t = 0; t < chunks[idx + i].tiles.renderer.count / 6; t++) {
-            if (!chunks[idx + i].tiles.renderer.collidable[t]) {
+        chunk *c = *chunk_ptr;
+
+        u32 tile_count = c->tiles.renderer.count / 6;
+        for (u32 t = 0; t < tile_count; t++) {
+            if (!c->tiles.renderer.collidable[t]) {
                 continue;
             }
-            vec2f tile_pos =
-                VEC2F(chunks[idx + i].tiles.renderer.vertices[(u64)t * 6].x,
-                      chunks[idx + i].tiles.renderer.vertices[(u64)t * 6].y);
-            if (player->attribs.pos.y + player->attribs.size.y <= tile_pos.y) {
+
+            vec2f tile_pos = VEC2F(c->tiles.renderer.vertices[(u64)t * 6].x,
+                                   c->tiles.renderer.vertices[(u64)t * 6].y);
+
+            if (player->attribs.pos.y + player->attribs.size.y <= tile_pos.y ||
+                player->attribs.pos.y >= tile_pos.y + BLOCK_SIZE) {
                 continue;
             }
-            if (player->attribs.pos.y >= tile_pos.y + BLOCK_SIZE) {
-                continue;
-            }
-            rect_collider player_collider = {.pos = player->attribs.pos,
-                                             .size = player->attribs.size};
-            rect_collider tile_collider = {
-                .pos = tile_pos, .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)};
+
+            rect_collider player_collider = {.pos = player->attribs.pos, .size = player->attribs.size};
+            rect_collider tile_collider = {.pos = tile_pos, .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)};
 
             if (check_collision_rects(player_collider, tile_collider)) {
                 if (player->attribs.vel.x > 0) {
-                    player->attribs.pos.x = tile_pos.x - player->attribs.size.x;
+                    player->attribs.pos.x = tile_pos.x - player->attribs.size.x - 0.01f;
                 } else if (player->attribs.vel.x < 0) {
-                    player->attribs.pos.x = tile_pos.x + BLOCK_SIZE;
+                    player->attribs.pos.x = tile_pos.x + BLOCK_SIZE + 0.01f;
                 }
                 player->attribs.vel.x = 0;
             }
         }
     }
-    player->attribs.pos.y += player->attribs.vel.y * get_dt();
+
+    player->attribs.pos.y += player->attribs.vel.y * dt;
     player->attribs.ground = false;
+
+    idx = (i32)player->attribs.pos.x / (CHUNK_SIZE * BLOCK_SIZE);
+
     for (i32 i = -1; i < 2; i++) {
-        if (idx == 0 && i == -1) {
+        i32 current_idx = idx + i;
+        if (current_idx < (i32)left_most_chunk || current_idx > (i32)right_most_chunk) {
             continue;
         }
-        if (idx == MAP_SIZE - 1 && i == 1) {
+
+        chunk **chunk_ptr = chunk_map_get(chunks, current_idx);
+        if (!chunk_ptr || !*chunk_ptr || !(*chunk_ptr)->ready) {
             continue;
         }
-        for (u32 t = 0; t < chunks[idx + i].tiles.renderer.count / 6; t++) {
-            if (!chunks[idx + i].tiles.renderer.collidable[t]) {
+        chunk *c = *chunk_ptr;
+
+        u32 tile_count = c->tiles.renderer.count / 6;
+        for (u32 t = 0; t < tile_count; t++) {
+            if (!c->tiles.renderer.collidable[t]) {
                 continue;
             }
-            vec2f tile_pos =
-                VEC2F(chunks[idx + i].tiles.renderer.vertices[(u64)t * 6].x,
-                      chunks[idx + i].tiles.renderer.vertices[(u64)t * 6].y);
-            if (player->attribs.pos.x + player->attribs.size.x <= tile_pos.x) {
+
+            vec2f tile_pos = VEC2F(c->tiles.renderer.vertices[(u64)t * 6].x,
+                                   c->tiles.renderer.vertices[(u64)t * 6].y);
+
+            if (player->attribs.pos.x + player->attribs.size.x <= tile_pos.x ||
+                player->attribs.pos.x >= tile_pos.x + BLOCK_SIZE) {
                 continue;
             }
-            if (player->attribs.pos.x >= tile_pos.x + BLOCK_SIZE) {
-                continue;
-            }
-            rect_collider player_collider = {.pos = player->attribs.pos,
-                                             .size = player->attribs.size};
-            rect_collider tile_collider = {
-                .pos = tile_pos, .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)};
+
+            rect_collider player_collider = {.pos = player->attribs.pos, .size = player->attribs.size};
+            rect_collider tile_collider = {.pos = tile_pos, .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)};
 
             if (check_collision_rects(player_collider, tile_collider)) {
                 if (player->attribs.vel.y > 0) {
-                    player->attribs.pos.y = tile_pos.y - player->attribs.size.y;
+                    player->attribs.pos.y = tile_pos.y - player->attribs.size.y - 0.01f;
                     player->attribs.ground = true;
                 } else if (player->attribs.vel.y < 0) {
-                    player->attribs.pos.y = tile_pos.y + BLOCK_SIZE +
-                                    0.1f; // Prevent glitching through
-                                          // blocks if jumping into them
-                                          // below by slightly offsetting
+                    player->attribs.pos.y = tile_pos.y + BLOCK_SIZE + 0.01f; 
                 }
                 player->attribs.vel.y = 0;
             }
@@ -677,18 +739,25 @@ void player_move_and_collide(player_t *player, chunk *chunks) {
 
 // }}}
 
-void player_update(player_t *player, chunk *chunks, block_data_t *block_data,
-                   vec_item_drop *drops) {
-    player_handle_controls(player, chunks, block_data, drops);
-    player_move_and_collide(player, chunks);
+void player_update(player_t *player, chunk_map *chunks,
+                   block_data_t *block_data, vec_item_drop *drops,
+                   u32 left_most_chunk, u32 right_most_chunk) {
+    player_handle_controls(player, chunks, block_data, drops, left_most_chunk,
+                           right_most_chunk);
+    player_move_and_collide(player, chunks, left_most_chunk, right_most_chunk);
 }
 
-void player_set_spawn_point(player_t *player, fnl_state *terrain) {
+u32 player_set_spawn_point(player_t *player, fnl_state *terrain) {
+    u32 spawn_chunk_x = (u32)(MAP_SIZE * 0.5f);
     f32 noise =
-        (fnlGetNoise2D(terrain, (f32)((u32)(0 * CHUNK_SIZE)), 0) + 1.0f) * 0.5f;
+        (fnlGetNoise2D(terrain, (f32)((u32)(spawn_chunk_x * CHUNK_SIZE)), 0) +
+         1.0f) *
+        0.5f;
     u32 height =
         MIN_TERRAIN_HEIGHT + (noise * (MAX_FIELD_HEIGHT - MIN_TERRAIN_HEIGHT));
-    player->attribs.pos.y = (f32)(MAX_CHUNK_HEIGHT - height) * BLOCK_SIZE;
+    player->attribs.pos.x = (f32)spawn_chunk_x * CHUNK_SIZE * BLOCK_SIZE;
+    player->attribs.pos.y = (f32)(MAX_CHUNK_HEIGHT - height - 1) * BLOCK_SIZE;
+    return spawn_chunk_x;
 }
 
 // {{{ GUI
@@ -714,23 +783,23 @@ void player_draw_inventory(player_t *player, texture *inventory,
             }
             vec2f arrow_size =
                 VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
-            vec2f item_size =
-                VEC2F(item_textures[player->inventory.hotbar[i].item].size.x * 4,
-                      item_textures[player->inventory.hotbar[i].item].size.y * 4);
+            vec2f item_size = VEC2F(
+                item_textures[player->inventory.hotbar[i].item].size.x * 4,
+                item_textures[player->inventory.hotbar[i].item].size.y * 4);
             vec2f slot_pos = VEC2F(first_hotbar_slot.x + (arrow_size.x * 0.5f) -
                                        (item_size.x * 0.5f) + ((18 * 4) * i),
                                    first_hotbar_slot.y);
-            draw_texture2D(&item_textures[player->inventory.hotbar[i].item], slot_pos,
-                           item_size, WHITE, 0);
+            draw_texture2D(&item_textures[player->inventory.hotbar[i].item],
+                           slot_pos, item_size, WHITE, 0);
         }
 
         begin_draw(TEXT, false);
         for (u32 i = 0; i < 9; i++) {
             vec2f arrow_size =
                 VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
-            vec2f item_size =
-                VEC2F(item_textures[player->inventory.hotbar[i].item].size.x * 4,
-                      item_textures[player->inventory.hotbar[i].item].size.y * 4);
+            vec2f item_size = VEC2F(
+                item_textures[player->inventory.hotbar[i].item].size.x * 4,
+                item_textures[player->inventory.hotbar[i].item].size.y * 4);
             f32 offset_y = 20.0f;
             vec2f slot_pos = VEC2F(first_hotbar_slot.x + (arrow_size.x * 0.5f) -
                                        (item_size.x * 0.5f) + ((18 * 4) * i),
@@ -763,12 +832,13 @@ void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
 
         vec2f arrow_size =
             VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
-        draw_texture2D(
-            hotbar_arrow,
-            VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f) +
-                      ((arrow_size.x - (4 * 4)) * player->inventory.hotbar_selected) - 4,
-                  get_screen_height() - size.y - offset_y - 4),
-            arrow_size, WHITE, 0);
+        draw_texture2D(hotbar_arrow,
+                       VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f) +
+                                 ((arrow_size.x - (4 * 4)) *
+                                  player->inventory.hotbar_selected) -
+                                 4,
+                             get_screen_height() - size.y - offset_y - 4),
+                       arrow_size, WHITE, 0);
 
         for (u32 i = 0; i < 9; i++) {
             vec2f slot_pos =
@@ -779,9 +849,9 @@ void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
                 player->inventory.hotbar[i].item == ITEM_NONE) {
                 continue;
             }
-            vec2f item_size =
-                VEC2F(item_textures[player->inventory.hotbar[i].item].size.x * 4,
-                      item_textures[player->inventory.hotbar[i].item].size.y * 4);
+            vec2f item_size = VEC2F(
+                item_textures[player->inventory.hotbar[i].item].size.x * 4,
+                item_textures[player->inventory.hotbar[i].item].size.y * 4);
             draw_texture2D(
                 &item_textures[player->inventory.hotbar[i].item],
                 VEC2F(slot_pos.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f),

@@ -1,6 +1,8 @@
 #include "chunk.h"
 #include "blocks.h"
 
+#include <pthread.h>
+
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
 #include <cpstd/cprng.h>
@@ -8,6 +10,10 @@
 #include "../cpstd/cprng.h"
 #include "../external/cpl.h"
 #endif
+
+pthread_t chunk_gen_workers[CHUNK_GEN_THREADS];
+pthread_attr_t detached_threads;
+pthread_mutex_t chunk_gen_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 u32 chunk_derive_seed(u32 base, u32 salt) {
     u32 h = base;
@@ -318,8 +324,53 @@ void chunk_gen_caves(chunk *c, map_noise_t *map_noise, vec2f pos, u32 height,
 
 // }}}
 
-void chunk_gen(chunk *c, map_noise_t *map_noise, block_data_t *block_data,
-               vec2f pos) {
+// {{{ Multithreading
+
+void chunk_init_threads(worker_data *data) {
+    pthread_attr_init(&detached_threads);
+    pthread_attr_setdetachstate(&detached_threads, PTHREAD_CREATE_DETACHED);
+
+    chunk_gen_queue_t_init(data->queue, 10);
+
+    for (u32 i = 0; i < CHUNK_GEN_THREADS; i++) {
+        if (pthread_create(&chunk_gen_workers[i], &detached_threads,
+                           chunk_gen_loop, (void *)data)) {
+            fprintf(stderr, "Failed to create worker thread!\n");
+            exit(-1);
+        }
+    }
+}
+
+void chunk_close_threads(worker_data *data) {
+    chunk_gen_queue_t_destroy(data->queue);
+
+    pthread_attr_destroy(&detached_threads);
+    pthread_mutex_destroy(&chunk_gen_queue_mutex);
+}
+
+void *chunk_gen_loop(void *arg) {
+    worker_data *data = (worker_data *)arg;
+    while (true) {
+        pthread_mutex_lock(&chunk_gen_queue_mutex);
+        if (!chunk_gen_queue_t_empty(data->queue) &&
+            (*chunk_gen_queue_t_back(data->queue))->gen_gl_data) {
+            chunk *c = NULL;
+            chunk_gen_queue_t_pop(data->queue, &c);
+            pthread_mutex_unlock(&chunk_gen_queue_mutex);
+            chunk_gen(c, data->map_noise, data->block_data);
+            tilemap_check_collidable_tiles(&c->tiles,
+                                           VEC2F(BLOCK_SIZE, BLOCK_SIZE));
+            c->ready = true;
+        } else {
+            pthread_mutex_unlock(&chunk_gen_queue_mutex);
+        }
+    }
+    return NULL;
+}
+
+// }}}
+
+void chunk_gen_gl(chunk *c) {
     create_tilemap(&c->tiles, VEC2F(16, 16));
     tilemap_load_texture(&c->tiles, "assets/images/blocks/block_map.png",
                          FILTER_NEAREST);
@@ -329,26 +380,29 @@ void chunk_gen(chunk *c, map_noise_t *map_noise, block_data_t *block_data,
     create_tilemap(&c->tiles_bg, VEC2F(16, 16));
     tilemap_load_texture(&c->tiles_bg, "assets/images/blocks/block_map.png",
                          FILTER_NEAREST);
-    c->pos = pos;
+    c->gen_gl_data = true;
+}
+
+void chunk_gen(chunk *c, map_noise_t *map_noise, block_data_t *block_data) {
     tilemap_begin_editing(&c->tiles);
     tilemap_begin_editing(&c->tiles_passable);
     tilemap_begin_editing(&c->tiles_bg);
     for (u32 x = 0; x < CHUNK_SIZE; x++) {
         f32 noise = (fnlGetNoise2D(&map_noise->terrain,
-                                   (f32)((u32)(pos.x * CHUNK_SIZE) + x), 0) +
+                                   (f32)((u32)(c->pos.x * CHUNK_SIZE) + x), 0) +
                      1.0f) *
                     0.5f;
         u32 height = MIN_TERRAIN_HEIGHT +
                      (noise * (MAX_FIELD_HEIGHT - MIN_TERRAIN_HEIGHT));
         u32 bedrock_len =
-            2 + (u32)(chunk_gen_hash((i32)((u32)(pos.x * CHUNK_SIZE) + x), 0,
+            2 + (u32)(chunk_gen_hash((i32)((u32)(c->pos.x * CHUNK_SIZE) + x), 0,
                                      map_noise->terrain.seed - 1000) *
                       4);
         for (u32 y = 0; y < height; y++) {
-            vec2f uv =
-                chunk_gen_terrain(c, map_noise, block_data, pos, height, x, y);
+            vec2f uv = chunk_gen_terrain(c, map_noise, block_data, c->pos,
+                                         height, x, y);
 
-            vec2f tile_pos = VEC2F(((pos.x * CHUNK_SIZE) + x) * BLOCK_SIZE,
+            vec2f tile_pos = VEC2F(((c->pos.x * CHUNK_SIZE) + x) * BLOCK_SIZE,
                                    (MAX_CHUNK_HEIGHT - y) * BLOCK_SIZE);
             tilemap_add_tile(&c->tiles, tile_pos, VEC2F_INIT(BLOCK_SIZE), uv);
             if (!vec2f_cmp(uv, block_data[BLOCK_BEDROCK].uv)) {
@@ -356,11 +410,11 @@ void chunk_gen(chunk *c, map_noise_t *map_noise, block_data_t *block_data,
                                  uv);
             }
 
-            chunk_gen_caves(c, map_noise, pos, height, x, y);
+            chunk_gen_caves(c, map_noise, c->pos, height, x, y);
         }
     }
-    chunk_gen_foliage(c, map_noise, block_data, pos);
-    chunk_gen_trees(c, map_noise, block_data, pos);
+    chunk_gen_foliage(c, map_noise, block_data, c->pos);
+    chunk_gen_trees(c, map_noise, block_data, c->pos);
 }
 
 void chunk_draw(chunk *c) {

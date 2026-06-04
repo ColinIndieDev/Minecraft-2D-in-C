@@ -41,7 +41,7 @@ void item_drop_item(item_drop *drop, item_types type, vec2f pos) {
     drop->timer = get_time();
 }
 
-void item_update_drop_collision(item_drop *drop, chunk *chunks) {
+void item_update_drop_collision(item_drop *drop, chunk_map *chunks) {
     drop->vel.y += drop->gravity * get_dt();
     if (drop->vel.y > drop->max_fall_speed) {
         drop->vel.y = drop->max_fall_speed;
@@ -50,13 +50,13 @@ void item_update_drop_collision(item_drop *drop, chunk *chunks) {
     drop->collider_pos.y += drop->vel.y * get_dt();
     drop->ground = false;
     i32 idx = (i32)drop->collider_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
-    for (u32 t = 0; t < chunks[idx].tiles.renderer.count / 6; t++) {
-        if (!chunks[idx].tiles.renderer.collidable[t]) {
+    for (u32 t = 0; t < (*chunk_map_get(chunks, idx))->tiles.renderer.count / 6; t++) {
+        if (!(*chunk_map_get(chunks, idx))->tiles.renderer.collidable[t]) {
             continue;
         }
         vec2f tile_pos =
-            VEC2F(chunks[idx].tiles.renderer.vertices[(u64)t * 6].x,
-                  chunks[idx].tiles.renderer.vertices[(u64)t * 6].y);
+            VEC2F((*chunk_map_get(chunks, idx))->tiles.renderer.vertices[(u64)t * 6].x,
+                  (*chunk_map_get(chunks, idx))->tiles.renderer.vertices[(u64)t * 6].y);
         if (drop->collider_pos.x + drop->size.x <= tile_pos.x) {
             continue;
         }
@@ -101,7 +101,7 @@ void item_update_anim(item_drop *drop) {
                       drop->collider_pos.y + (drop->size.y * 0.5f) + offset);
 }
 
-void item_update_drop(item_drop *drop, chunk *chunks) {
+void item_update_drop(item_drop *drop, chunk_map *chunks) {
     item_update_drop_collision(drop, chunks);
     item_update_anim(drop);
 }

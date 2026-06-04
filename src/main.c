@@ -1,8 +1,10 @@
-#include <stdlib.h>
+#include <cpstd/cpqueue.h>
+#include <pthread.h>
 #define CPL_IMPLEMENTATION
 #define CPRNG_IMPL
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
+#include <cpstd/cphash.h>
 #include <cpstd/cprng.h>
 #else
 #include "../cpstd/cprng.h"
@@ -20,36 +22,38 @@ EXTERN_BLOCKS_H_VARIABLES
 EXTERN_ITEMS_H_VARIABLES
 EXTERN_TEXTURES_H_VARIABLES
 
+// A mf clanker told me I need this but I do not trust it + it does in fact work
+// without the mutex but I guess I will leave this as an option in case it is
+// right (I surely hope not)
+#define USE_CHUNK_MAP_MUTEX false
+
 player_t player = {
-    .attribs = {
-        .pos = VEC2F(0, 0),
-        .size = VEC2F(0.5f * BLOCK_SIZE, 1.75f * BLOCK_SIZE),
-        .vel = VEC2F(0, 0),
-        .ground = true,
-        .jmp_force = 450.0f,
-        .gravity = 900.0f,
-        .move_speed = PLAYER_BASE_SPEED,
-        .max_fall_speed = 1100.0f
-    },
-    .mining = {
-        .block = VEC2F(-1, -1), 
-        .block_dt = 0.0f, 
-        .timer = 0.0f
-    },
-    .stats = {
-        .health = 20, 
-        .hunger = 20
-    },
-    .inventory = {
-        .hotbar_selected = 0, 
-        .enabled = false
-    }
-};
+    .attribs = {.pos = VEC2F(0, 0),
+                .size = VEC2F(0.5f * BLOCK_SIZE, 1.75f * BLOCK_SIZE),
+                .vel = VEC2F(0, 0),
+                .ground = true,
+                .jmp_force = 450.0f,
+                .gravity = 900.0f,
+                .move_speed = PLAYER_BASE_SPEED,
+                .max_fall_speed = 1100.0f},
+    .mining = {.block = VEC2F(-1, -1), .block_dt = 0.0f, .timer = 0.0f},
+    .stats = {.health = 20, .hunger = 20},
+    .inventory = {.hotbar_selected = 0, .enabled = false}};
+u32 left_most_chunk = 0;
+;
+u32 right_most_chunk = 0;
 
 map_noise_t map_noise;
-chunk c[MAP_SIZE];
+HASHMAP_IMPL(u32, chunk *, chunk_map)
+chunk_map chunks;
+pthread_mutex_t chunk_map_mutex = PTHREAD_MUTEX_INITIALIZER;
 VEC_IMPL(item_drop, vec_item_drop)
 vec_item_drop item_drops;
+QUEUE_IMPL(chunk *, chunk_gen_queue_t)
+chunk_gen_queue_t chunk_gen_queue;
+worker_data chunk_gen_worker_data = {.map_noise = &map_noise,
+                                     .block_data = block_data,
+                                     .queue = &chunk_gen_queue};
 
 void init_player();
 void init_map();
@@ -68,6 +72,8 @@ int main(void) {
     }
 #endif
 
+    chunk_close_threads(&chunk_gen_worker_data);
+    pthread_mutex_destroy(&chunk_map_mutex);
     close_window();
 }
 
@@ -87,15 +93,28 @@ void init_player() {
 }
 
 void init_map() {
+    chunk_map_init(&chunks, 10);
+
     chunk_gen_seed(&map_noise);
 
-    // Temporarily, but it actually does not suck
-    for (u32 i = 0; i < MAP_SIZE; i++) {
-        chunk_gen(&c[i], &map_noise, block_data, VEC2F(i, 0));
-        tilemap_check_collidable_tiles(&c[i].tiles,
-                                       VEC2F(BLOCK_SIZE, BLOCK_SIZE));
+    u32 spawn_chunk_x = player_set_spawn_point(&player, &map_noise.terrain);
+    left_most_chunk = spawn_chunk_x - 1;
+    right_most_chunk = spawn_chunk_x + 1;
+    for (u32 i = left_most_chunk; i <= right_most_chunk; i++) {
+#if USE_CHUNK_MAP_MUTEX
+        pthread_mutex_lock(&chunk_map_mutex);
+#endif
+        chunk *new_chunk = malloc(sizeof(chunk));
+        new_chunk->pos = VEC2F(i, 0);
+        new_chunk->gen_gl_data = false;
+        new_chunk->ready = false;
+        chunk_map_put(&chunks, i, new_chunk);
+#if USE_CHUNK_MAP_MUTEX
+        pthread_mutex_unlock(&chunk_map_mutex);
+#endif
+        chunk_gen_gl(new_chunk);
+        chunk_gen_queue_t_push(&chunk_gen_queue, new_chunk);
     }
-    player_set_spawn_point(&player, &map_noise.terrain);
 }
 
 // }}}
@@ -109,6 +128,7 @@ void init() {
 #endif
     enable_vsync(false);
 
+    chunk_init_threads(&chunk_gen_worker_data);
     textures_load_resources();
     init_player();
     init_map();
@@ -117,7 +137,8 @@ void init() {
 void main_loop() {
     update();
 
-    player_update(&player, c, block_data, &item_drops);
+    player_update(&player, &chunks, block_data, &item_drops, left_most_chunk,
+                  right_most_chunk);
 
     clear_background(LIGHT_BLUE);
 
@@ -133,9 +154,60 @@ void main_loop() {
                    ((f32)get_screen_width() * (1.0f / get_cam_2D()->zoom))) *
                   (1.0f / (CHUNK_SIZE * BLOCK_SIZE)));
 
+        if (start_chunk < 0) {
+            start_chunk = 0;
+        }
+        if (end_chunk >= MAP_SIZE) {
+            end_chunk = MAP_SIZE - 1;
+        }
+
         for (i32 i = start_chunk; i <= end_chunk; i++) {
+#if USE_CHUNK_MAP_MUTEX
+            pthread_mutex_lock(&chunk_map_mutex);
+#endif
             if (i >= 0 && i < MAP_SIZE) {
-                chunk_draw(&c[i]);
+                chunk *existing_chunk = NULL;
+                if (chunk_map_get(&chunks, i)) {
+                    existing_chunk = *chunk_map_get(&chunks, i);
+                }
+
+                if (!existing_chunk) {
+                    chunk *new_chunk = malloc(sizeof(chunk));
+                    new_chunk->pos = VEC2F(i, 0);
+                    new_chunk->gen_gl_data = false;
+                    new_chunk->ready = false;
+                    chunk_map_put(&chunks, i, new_chunk);
+                    if (new_chunk != NULL) {
+                        chunk_gen_gl(new_chunk);
+                        chunk_gen_queue_t_push(&chunk_gen_queue, new_chunk);
+                    }
+#if USE_CHUNK_MAP_MUTEX
+                    pthread_mutex_unlock(&chunk_map_mutex);
+#endif
+                    if (i < left_most_chunk) {
+                        left_most_chunk = i;
+                    }
+                    if (i > right_most_chunk) {
+                        right_most_chunk = i;
+                    }
+                } else {
+#if USE_CHUNK_MAP_MUTEX
+                    pthread_mutex_unlock(&chunk_map_mutex);
+#endif
+                }
+            } else {
+#if USE_CHUNK_MAP_MUTEX
+                pthread_mutex_unlock(&chunk_map_mutex);
+#endif
+            }
+        }
+
+        for (i32 i = start_chunk; i <= end_chunk; i++) {
+            if (i >= left_most_chunk && i <= right_most_chunk) {
+                chunk *c = *chunk_map_get(&chunks, i);
+                if (c && c->ready) {
+                    chunk_draw(c);
+                }
             }
         }
     }
@@ -168,9 +240,19 @@ void main_loop() {
                    ((f32)get_screen_width() * (1.0f / get_cam_2D()->zoom))) *
                   (1.0f / (CHUNK_SIZE * BLOCK_SIZE)));
 
+        if (start_chunk < 0) {
+            start_chunk = 0;
+        }
+        if (end_chunk >= MAP_SIZE) {
+            end_chunk = MAP_SIZE - 1;
+        }
+
         for (i32 i = start_chunk; i <= end_chunk; i++) {
-            if (i >= 0 && i < MAP_SIZE) {
-                chunk_draw_passable(&c[i]);
+            if (i >= left_most_chunk && i <= right_most_chunk) {
+                chunk *c = *chunk_map_get(&chunks, i);
+                if (c && c->ready) {
+                    chunk_draw_passable(c);
+                }
             }
         }
     }
@@ -183,8 +265,8 @@ void main_loop() {
 
     begin_draw(TEXT, false);
 
-    // draw_ui();
-    display_details(&f);
+    draw_ui();
+    // display_details(&f);
 
     end_frame();
 }
@@ -204,10 +286,18 @@ void draw_ui() {
     }
     {
         char txt[100];
-        snprintf(txt, sizeof(txt), "X: %d Y: %d",
+        snprintf(txt, sizeof(txt), "X: %d Y: %d (Chunk: %d)",
                  (i32)player.attribs.pos.x / BLOCK_SIZE,
-                 MAX_CHUNK_HEIGHT - (i32)(player.attribs.pos.y / BLOCK_SIZE));
+                 MAX_CHUNK_HEIGHT - (i32)(player.attribs.pos.y / BLOCK_SIZE),
+                 (i32)player.attribs.pos.x / BLOCK_SIZE / CHUNK_SIZE);
         draw_text_shadow(&f, txt, VEC2F(10, 110), 0.7f, WHITE, VEC2F(3, 3),
+                         BLACK);
+    }
+    {
+        char txt[100];
+        snprintf(txt, sizeof(txt), "Chunks generated: %d",
+                 chunks.size);
+        draw_text_shadow(&f, txt, VEC2F(10, 160), 0.7f, WHITE, VEC2F(3, 3),
                          BLACK);
     }
 }

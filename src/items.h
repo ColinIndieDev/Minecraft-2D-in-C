@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk.h"
+#include <cpstd/cphash.h>
 
 #ifndef __EMSCRIPTEN__
 #include <cpl/cpl.h>
@@ -59,7 +60,8 @@ typedef struct {
     item_types type;
 } item_drop;
 VEC_DECL(item_drop, vec_item_drop)
+HASHMAP_DECL(u32, chunk *, chunk_map)
 
 void item_drop_item(item_drop *drop, item_types type, vec2f pos);
-void item_update_drop(item_drop *drop, chunk *chunks);
+void item_update_drop(item_drop *drop, chunk_map *chunks);
 void item_draw_drop(item_drop *drop, texture *item_textures);
