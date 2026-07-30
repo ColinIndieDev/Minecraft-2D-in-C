@@ -15,4 +15,6 @@ void main() {
     frag_pos = world_pos.xy;
     tex_coord = vec2(a_tex_coord.x, a_tex_coord.y);
     gl_Position = projection * world_pos;
+    gl_Position.y = -gl_Position.y;
+    gl_Position.z = gl_Position.z * 2.0 - gl_Position.w;
 }

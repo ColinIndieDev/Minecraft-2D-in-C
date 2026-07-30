@@ -18,52 +18,50 @@
 #define ICON_HUNGER_HALF VEC2F(2, 3)
 
 typedef struct {
-    item_types item;
-    u32 count;
-} slot;
+    item_type_t item;
+    uint32_t count;
+} slot_t;
 
 typedef struct {
-    slot hotbar[9];
-    u32 hotbar_selected;
-    b8 enabled;
+    slot_t hotbar[9];
+    uint32_t hotbar_selected;
+    bool enabled;
 } inventory_t;
-
-typedef struct {
-    tilemap icons_bg;
-    tilemap icons;
-    f32 health;
-    f32 hunger;
-} stats_t;
-
-typedef struct {
-    vec2f block;
-    f32 block_dt;
-    f32 timer;
-} mining_t;
 
 typedef struct {
     vec2f pos;
     vec2f size;
     vec2f vel;
-    f32 jmp_force;
-    f32 gravity;
-    f32 move_speed;
-    f32 max_fall_speed;
-    b8 ground;
+    float jmp_force;
+    float gravity;
+    float move_speed;
+    float max_fall_speed;
+    bool ground;
 } physical_attribs_t;
 
 typedef struct {
-    physical_attribs_t attribs;
-    mining_t mining;
+    tilemap icons_bg;
+    tilemap icons;
+    float health;
+    float hunger;
+} stats_t;
+
+typedef struct {
+    vec2f block;
+    float block_dt;
+    float timer;
+} mining_t;
+
+typedef struct {
     stats_t stats;
     inventory_t inventory;
+    physical_attribs_t attribs;
+    mining_t mining;
 } player_t;
 
-
-void player_update(player_t *player, chunk_map *chunks, block_data_t *block_data,
-                   vec_item_drop *drops, u32 left_most_chunk, u32 right_most_chunk);
-u32 player_set_spawn_point(player_t *player, fnl_state *terrain);
+void player_update(player_t *player, chunk_entry *chunks, block_data_t *block_data, item_drop_t **drops, 
+                   uint32_t left_most_chunk, uint32_t right_most_chunk);
+uint32_t player_set_spawn_point(player_t *player, fnl_state *terrain);
 void player_draw(player_t *player);
 void player_draw_inventory(player_t *player, texture *inventory, texture *item_textures, texture *hotbar_arrow, font *f);
-void player_draw_gui(player_t *player, texture *hotbar, texture *hotbar_arrow,
-                     texture *item_textures, font *f);
+void player_draw_ui(player_t *player, texture *hotbar, texture *hotbar_arrow, texture *item_textures, font *f);

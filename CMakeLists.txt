@@ -11,7 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 #### Debug ####
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options(-g -O0 -fno-omit-frame-pointer)
+    add_compile_options(-g -Og -fno-omit-frame-pointer)
     add_compile_options(
         -fsanitize=address,undefined
         -fsanitize-recover=address
@@ -27,7 +27,7 @@ endif()
 #### Dev ####
 
 if (CMAKE_BUILD_TYPE STREQUAL "Dev")
-    add_compile_options(-g -O2 -DNDEBUG)
+    add_compile_options(-g -O2 -fno-omit-frame-pointer -DNDEBUG)
 endif()
 
 #### Release ####
@@ -90,6 +90,14 @@ file(DOWNLOAD
 add_library(miniaudio INTERFACE)
 target_include_directories(miniaudio INTERFACE "${CMAKE_BINARY_DIR}/_deps/miniaudio")
 
+# ENet
+FetchContent_Declare(
+    enet
+    GIT_REPOSITORY https://github.com/zpl-c/enet.git
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(enet)
+
 # GLAD
 add_subdirectory(external/glad)
 
@@ -115,6 +123,7 @@ add_executable(${CMAKE_PROJECT_NAME}
 
 # OpenMP, pthread, GLFW, GLAD, STB & FT
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${stb_SOURCE_DIR})
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${enet_SOURCE_DIR}/include)
 
 if (NOT EMSCRIPTEN)
     find_package(OpenMP REQUIRED)
@@ -123,7 +132,10 @@ endif()
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Threads::Threads glad freetype miniaudio)
+# cpstd
+find_package(cpstd REQUIRED)
+
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Threads::Threads glad freetype miniaudio cpstd::cpstd)
 
 if (NOT EMSCRIPTEN)
     set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)

@@ -1,6 +1,6 @@
 #include "blocks.h"
 
-block_data_t block_data[BLOCK_TYPES] = {
+block_data_t block_data[BLOCK_TYPE_T_SIZE] = {
     {.uv = VEC2F(1, 0), .base_mining_dt = 0.6f,   .unbreakable = false, .passable = false}, // Grass Block
     {.uv = VEC2F(0, 0), .base_mining_dt = 0.6f,   .unbreakable = false, .passable = false}, // Dirt
     {.uv = VEC2F(2, 0), .base_mining_dt = 10.0f,  .unbreakable = false, .passable = false}, // Stone
