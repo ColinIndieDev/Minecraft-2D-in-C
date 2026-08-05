@@ -8,6 +8,9 @@
 #include <cpstd/vector.h>
 #include <cpl/cpl.h>
 
+vec2f tile_map_size = VEC2F(0, 0);
+vec2f tile_size = VEC2F(16, 16);
+
 #pragma region Item and Block ID convertion
 
 int player_item_id_to_block_id(int item_id) {
@@ -153,9 +156,20 @@ void player_draw(player_t *player) {
 }
 
 // If tilemap texture gets bigger, it is more vulnerable to cumbersome precision
+// Additionally because of insetting of tilemap uvs in cpl we need a larger uv epsilon
 int player_get_block_type_id(block_data_t *block_data, vec2f uv) {
+    float tw = tile_size.x / tile_map_size.x;
+    float th = tile_size.y / tile_map_size.y;
+
+    float texel_u = 1.0f / tile_map_size.x;
+    float texel_v = 1.0f / tile_map_size.y;
+
+    float inset_u = UV_INSET_TEXEL_SCALE * texel_u;
+    float inset_v = UV_INSET_TEXEL_SCALE * texel_v;
+
     for (int i = 0; i < BLOCK_TYPE_T_SIZE; i++) {
-        if (math_abs(uv.x - block_data[i].uv.x) < UV_EPSILON && math_abs(uv.y - block_data[i].uv.y) < UV_EPSILON) {
+        if (math_abs(uv.x - block_data[i].uv.x) < UV_EPSILON &&
+            math_abs(uv.y - block_data[i].uv.y) < UV_EPSILON) {
             return i;
         }
     }
@@ -338,13 +352,11 @@ void player_handle_block_placing(player_t *player, chunk_entry *chunks, block_da
 void player_handle_block_breaking(player_t *player, chunk_entry *chunks, block_data_t *block_data, item_drop_t **drops, 
                                   vec2f mouse_pos, vec2f mouse_pos_tilemap, uint32_t left_most_chunk, uint32_t right_most_chunk) {
     if (is_mouse_released(MOUSE_BUTTON_LEFT)) {
-        fprintf(stderr, "Released\n");
         player->mining.block = VEC2F(-1, -1);
         player->mining.block_dt = 0.0f;
     }
     if (is_mouse_down(MOUSE_BUTTON_LEFT)) {
         if (vec2f_dist(player->attribs.pos, mouse_pos) > MINE_AND_PLACE_RANGE * BLOCK_SIZE) {
-            fprintf(stderr, "Out of Range\n");
             player->mining.block = VEC2F(-1, -1);
             player->mining.block_dt = 0.0f;
             return;
@@ -355,7 +367,6 @@ void player_handle_block_breaking(player_t *player, chunk_entry *chunks, block_d
         uint32_t idx = (uint32_t)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
         vec2f ray_dir = VEC2F(mouse_pos.x - player->attribs.pos.x, mouse_pos.y - player->attribs.pos.y);
         if (!vec2f_cmp(player_raycast_hit_tile(chunks, block_data, player->attribs.pos, ray_dir, MINE_AND_PLACE_RANGE * BLOCK_SIZE), mouse_pos_tilemap)) {
-            fprintf(stderr, "Block in way\n");
             player->mining.block = VEC2F(-1, -1);
             player->mining.block_dt = 0.0f;
             return;
@@ -373,7 +384,6 @@ void player_handle_block_breaking(player_t *player, chunk_entry *chunks, block_d
             player->mining.timer = get_time();
 
             if (block_id == -1 || block_data[block_id].unbreakable) {
-                fprintf(stderr, "Invalid or unbreakable\n");
                 player->mining.block = VEC2F(-1, -1);
                 player->mining.block_dt = 0.0f;
             } else {
@@ -513,10 +523,143 @@ void player_handle_hotbar(player_t *player) {
     }
 }
 
+#pragma region player_handle_inventory() Helper
+
+int player_get_slot(player_t *player, texture *hotbar_arrow, texture *inventory, texture *item_textures) {
+    vec2f size = VEC2F(inventory->size.x * 4, inventory->size.y * 4);
+    vec2f pos = VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f), (get_screen_height() * 0.5f) - (size.y * 0.5f));
+    vec2f first_inventory_slot = VEC2F(pos.x + (4 * 4), pos.y + (84 * 4));
+    for (int y = 0; y < 3; y++) {
+        for (int x = 0; x < 9; x++) {
+            vec2f arrow_size = VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
+            vec2f item_size = VEC2F(item_textures[ITEM_DIRT].size.x * 4, 
+                                    item_textures[ITEM_DIRT].size.y * 4);
+            vec2f slot_pos = VEC2F(first_inventory_slot.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f) + ((18 * 4) * x),
+                                    first_inventory_slot.y + ((18 * 4) * y));
+            rect_collider slot_collider = {
+                .pos = slot_pos,
+                .size = item_size
+            };
+            if (check_collision_vec2f_rect(get_mouse_pos(), slot_collider)) {
+                return (y * 9) + x;
+            }
+        }
+    }
+
+    vec2f first_hotbar_slot = VEC2F(pos.x + (4 * 4), pos.y + size.y - (24 * 4));
+    for (int i = 0; i < 9; i++) {
+        vec2f arrow_size = VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
+        vec2f item_size = VEC2F(item_textures[ITEM_DIRT].size.x * 4, 
+                                item_textures[ITEM_DIRT].size.y * 4);
+        vec2f slot_pos = VEC2F(first_hotbar_slot.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f) + ((18 * 4) * i), first_hotbar_slot.y);
+        rect_collider slot_collider = {
+            .pos = slot_pos,
+            .size = item_size
+        };
+        if (check_collision_vec2f_rect(get_mouse_pos(), slot_collider)) {
+            return 27 + i;
+        }
+    }
+    return -1;
+}
+
+#pragma endregion
+
+int slot_selected = -1;
+slot_t item_dragged = {
+    .item = ITEM_NONE,
+    .count = 0
+};
+
+void player_handle_inventory(player_t *player, texture *hotbar_arrow, texture *inventory, texture *item_textures) {
+    int slot_idx = player_get_slot(player, hotbar_arrow, inventory, item_textures);
+    if (is_mouse_pressed(MOUSE_BUTTON_LEFT) && slot_idx != -1) {
+        if (slot_selected != -1) {
+            if (slot_idx >= 27) {
+                if (player->inventory.hotbar[slot_idx - 27].item == ITEM_NONE && 
+                    player->inventory.hotbar[slot_idx - 27].count == 0) {
+                    player->inventory.hotbar[slot_idx - 27].item = item_dragged.item;
+                    player->inventory.hotbar[slot_idx - 27].count = item_dragged.count;
+                    item_dragged.item = ITEM_NONE;
+                    item_dragged.count = 0;
+                    slot_selected = -1;
+                } else {
+                    if (player->inventory.hotbar[slot_idx - 27].item == item_dragged.item) {
+                        if (player->inventory.hotbar[slot_idx - 27].count + item_dragged.count > 64) {
+                            uint32_t items_left = player->inventory.hotbar[slot_idx - 27].count + (int)item_dragged.count - 64;
+                            player->inventory.hotbar[slot_idx - 27].count = 64;
+                            item_dragged.count = items_left;
+                        } else {
+                            player->inventory.hotbar[slot_idx - 27].count += item_dragged.count;
+                            item_dragged.item = ITEM_NONE;
+                            item_dragged.count = 0;
+                            slot_selected = -1;
+                        }
+                    } else {
+                        slot_t target = {
+                            .item = player->inventory.hotbar[slot_idx - 27].item,
+                            .count = player->inventory.hotbar[slot_idx - 27].count
+                        };
+                        player->inventory.hotbar[slot_idx - 27].item = item_dragged.item;
+                        player->inventory.hotbar[slot_idx - 27].count = item_dragged.count;
+                        item_dragged = target;
+                        slot_selected = slot_idx;
+                    }
+                }
+            } else {
+                if (player->inventory.slots[slot_idx].item == ITEM_NONE && 
+                    player->inventory.slots[slot_idx].count == 0) {
+                    player->inventory.slots[slot_idx].item = item_dragged.item;
+                    player->inventory.slots[slot_idx].count = item_dragged.count;
+                    item_dragged.item = ITEM_NONE;
+                    item_dragged.count = 0;
+                    slot_selected = -1;
+                } else {
+                    if (player->inventory.slots[slot_idx].item == item_dragged.item) {
+                        if (player->inventory.slots[slot_idx].count + item_dragged.count > 64) {
+                            uint32_t items_left = player->inventory.slots[slot_idx].count + (int)item_dragged.count - 64;
+                            player->inventory.slots[slot_idx].count = 64;
+                            item_dragged.count = items_left;
+                        } else {
+                            player->inventory.slots[slot_idx].count += item_dragged.count;
+                            item_dragged.item = ITEM_NONE;
+                            item_dragged.count = 0;
+                            slot_selected = -1;
+                        }
+                    } else {
+                        slot_t target = {
+                            .item = player->inventory.slots[slot_idx].item,
+                            .count = player->inventory.slots[slot_idx].count
+                        };
+                        player->inventory.slots[slot_idx].item = item_dragged.item;
+                        player->inventory.slots[slot_idx].count = item_dragged.count;
+                        item_dragged = target;
+                        slot_selected = slot_idx;
+                    }
+                }
+            } 
+        } else {
+            slot_selected = slot_idx;
+            if (slot_idx >= 27) {
+                item_dragged.item = player->inventory.hotbar[slot_idx - 27].item;
+                item_dragged.count = player->inventory.hotbar[slot_idx - 27].count;
+                player->inventory.hotbar[slot_idx - 27].item = ITEM_NONE;
+                player->inventory.hotbar[slot_idx - 27].count = 0;
+            } else {
+                item_dragged.item = player->inventory.slots[slot_idx].item;
+                item_dragged.count = player->inventory.slots[slot_idx].count;
+                player->inventory.slots[slot_idx].item = ITEM_NONE;
+                player->inventory.slots[slot_idx].count = 0;
+            }
+        }
+    }
+}
+
 #pragma endregion
 
 void player_handle_controls(player_t *player, chunk_entry *chunks, block_data_t *block_data, item_drop_t **drops,
-                            uint32_t left_most_chunk, uint32_t right_most_chunk) {
+                            uint32_t left_most_chunk, uint32_t right_most_chunk,
+                            texture *inventory, texture *item_textures, texture *hotbar_arrow) {
     get_cam_2D()->pos = VEC2F(player->attribs.pos.x - (get_screen_width() * (1 / get_cam_2D()->zoom) * 0.5f),
                               player->attribs.pos.y - (get_screen_height() * (1 / get_cam_2D()->zoom) * 0.5f));
     if (is_key_down(KEY_LETTER_H)) {
@@ -544,6 +687,8 @@ void player_handle_controls(player_t *player, chunk_entry *chunks, block_data_t 
         player_handle_block_placing(player, chunks, block_data, mouse_pos, mouse_pos_tilemap, left_most_chunk, right_most_chunk);
         player_handle_block_breaking(player, chunks, block_data, drops, mouse_pos, mouse_pos_tilemap, left_most_chunk, right_most_chunk);
         player_handle_item_drops(player, chunks, drops, mouse_pos, mouse_pos_tilemap, left_most_chunk, right_most_chunk);
+    } else {
+        player_handle_inventory(player, hotbar_arrow, inventory, item_textures);
     }
 }
 
@@ -654,14 +799,21 @@ void player_move_and_collide(player_t *player, chunk_entry *chunks, uint32_t lef
 
 #pragma endregion
 
+void player_init() {
+    texture t;
+    texture_load(&t, "assets/images/blocks/block_map.png", FILTER_NEAREST);
+    tile_map_size = t.size;
+}
+
 void player_update(player_t *player, chunk_entry *chunks, block_data_t *block_data, item_drop_t **drops, 
-                   uint32_t left_most_chunk, uint32_t right_most_chunk) {
+                   uint32_t left_most_chunk, uint32_t right_most_chunk,
+                   texture *inventory, texture *item_textures, texture *hotbar_arrow) {
     assert(player);
     assert(chunks);
     assert(block_data);
     assert(drops);
 
-    player_handle_controls(player, chunks, block_data, drops, left_most_chunk, right_most_chunk);
+    player_handle_controls(player, chunks, block_data, drops, left_most_chunk, right_most_chunk, inventory, item_textures, hotbar_arrow);
     player_move_and_collide(player, chunks, left_most_chunk, right_most_chunk);
 }
 
@@ -698,12 +850,40 @@ void player_draw_inventory(player_t *player, texture *inventory, texture *item_t
             draw_texture2D(&item_textures[player->inventory.hotbar[i].item], slot_pos, item_size, WHITE, NO_ROTATION);
         }
 
+        vec2f first_inventory_slot = VEC2F(pos.x + (4 * 4), pos.y + (84 * 4));
+        for (uint32_t y = 0; y < 3; y++) {
+            for (uint32_t x = 0; x < 9; x++) {
+                if (player->inventory.slots[(y * 9) + x].count == 0 ||
+                    player->inventory.slots[(y * 9) + x].item == ITEM_NONE) {
+                    continue;
+                }
+                vec2f arrow_size = VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
+                vec2f item_size = VEC2F(item_textures[player->inventory.slots[(y * 9) + x].item].size.x * 4, 
+                                        item_textures[player->inventory.slots[(y * 9) + x].item].size.y * 4);
+                vec2f slot_pos = VEC2F(first_inventory_slot.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f) + ((18 * 4) * x),
+                                       first_inventory_slot.y + ((18 * 4) * y));
+                draw_texture2D(&item_textures[player->inventory.slots[(y * 9) + x].item], slot_pos, item_size, WHITE, NO_ROTATION);
+            }
+        }
+
+        if (item_dragged.item != ITEM_NONE && item_dragged.count != 0) {
+            vec2f dragged_size_half = VEC2F((item_textures[item_dragged.item].size.x * 4) * 0.5f, 
+                                            (item_textures[item_dragged.item].size.y * 4) * 0.5f);
+            draw_texture2D(&item_textures[item_dragged.item], vec2f_sub(get_mouse_pos(), dragged_size_half), 
+                           vec2f_float_mul(item_textures[item_dragged.item].size, 4), WHITE, NO_ROTATION);
+            
+            begin_draw(TEXT, false);
+            vec2f arrow_size = VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
+            vec2f text_pos = VEC2F(get_mouse_pos().x + arrow_size.x - (20 * 4), get_mouse_pos().y + arrow_size.y - (20 * 4));
+            draw_text_shadow(f, text_pos, 0.7f, WHITE, VEC2F(4, 4), BLACK, "%d", item_dragged.count);
+        }
         begin_draw(TEXT, false);
+
+
         for (uint32_t i = 0; i < 9; i++) {
             vec2f arrow_size = VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
             vec2f item_size = VEC2F(item_textures[player->inventory.hotbar[i].item].size.x * 4, 
                                     item_textures[player->inventory.hotbar[i].item].size.y * 4);
-            float offset_y = 20.0f;
             vec2f slot_pos = VEC2F(first_hotbar_slot.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f) + ((18 * 4) * i), first_hotbar_slot.y);
             if (player->inventory.hotbar[i].count <= 1 || player->inventory.hotbar[i].item == ITEM_NONE) {
                 continue;
@@ -711,6 +891,23 @@ void player_draw_inventory(player_t *player, texture *inventory, texture *item_t
     
             vec2f text_pos = VEC2F(slot_pos.x + arrow_size.x - (12 * 4), slot_pos.y + arrow_size.y - (12 * 4));
             draw_text_shadow(f, text_pos, 0.7f, WHITE, VEC2F(4, 4), BLACK, "%d", player->inventory.hotbar[i].count);
+        }
+
+        for (uint32_t y = 0; y < 3; y++) {
+            for (uint32_t x = 0; x < 9; x++) {
+                vec2f arrow_size = VEC2F(hotbar_arrow->size.x * 4, hotbar_arrow->size.y * 4);
+                vec2f item_size = VEC2F(item_textures[player->inventory.slots[(y * 9) + x].item].size.x * 4, 
+                                        item_textures[player->inventory.slots[(y * 9) + x].item].size.y * 4);
+                float offset_y = 20.0f;
+                vec2f slot_pos = VEC2F(first_inventory_slot.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f) + ((18 * 4) * x), 
+                                       first_inventory_slot.y + ((18 * 4) * y));
+                if (player->inventory.slots[(y * 9) + x].count <= 1 || player->inventory.slots[(y * 9) + x].item == ITEM_NONE) {
+                    continue;
+                }
+    
+                vec2f text_pos = VEC2F(slot_pos.x + arrow_size.x - (12 * 4), slot_pos.y + arrow_size.y - (12 * 4));
+                draw_text_shadow(f, text_pos, 0.7f, WHITE, VEC2F(4, 4), BLACK, "%d", player->inventory.slots[(y * 9) + x].count);
+            }
         }
     }
 }

@@ -7,7 +7,7 @@
 #define MAX_STACK_SIZE 64
 #define MINE_AND_PLACE_RANGE 5
 
-#define UV_EPSILON 0.001f
+#define UV_EPSILON 0.01f
 
 #define ICON_PIXEL_SIZE 9
 #define ICON_HEART_BG VEC2F(0, 0)
@@ -23,6 +23,7 @@ typedef struct {
 } slot_t;
 
 typedef struct {
+    slot_t slots[27];
     slot_t hotbar[9];
     uint32_t hotbar_selected;
     bool enabled;
@@ -59,8 +60,9 @@ typedef struct {
     mining_t mining;
 } player_t;
 
+void player_init();
 void player_update(player_t *player, chunk_entry *chunks, block_data_t *block_data, item_drop_t **drops, 
-                   uint32_t left_most_chunk, uint32_t right_most_chunk);
+                   uint32_t left_most_chunk, uint32_t right_most_chunk, texture *inventory, texture *item_textures, texture *hotbar_arrow);
 uint32_t player_set_spawn_point(player_t *player, fnl_state *terrain);
 void player_draw(player_t *player);
 void player_draw_inventory(player_t *player, texture *inventory, texture *item_textures, texture *hotbar_arrow, font *f);

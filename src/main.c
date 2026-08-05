@@ -68,9 +68,6 @@ void draw_info();
 int main(void) {
     init();
 
-    player.inventory.hotbar[0].item = ITEM_DIRT;
-    player.inventory.hotbar[0].count = 64;
-
 #ifdef __EMSCRIPTEN__
     emscripten_set_main_loop(main_loop, 0, 1);
 #else
@@ -147,7 +144,7 @@ void init() {
 void main_loop() {
     update();
 
-    player_update(&player, chunks, block_data, &item_drops, left_most_chunk, right_most_chunk);
+    player_update(&player, chunks, block_data, &item_drops, left_most_chunk, right_most_chunk, &inventory, item_textures, &hotbar_arrow);
 
     clear_background(LIGHT_BLUE);
 

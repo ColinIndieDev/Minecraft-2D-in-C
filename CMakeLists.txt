@@ -8,8 +8,6 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-#### Debug ####
-
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_options(-g -Og -fno-omit-frame-pointer)
     add_compile_options(
@@ -24,19 +22,14 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     )
 endif()
 
-#### Dev ####
-
 if (CMAKE_BUILD_TYPE STREQUAL "Dev")
     add_compile_options(-g -O2 -fno-omit-frame-pointer -DNDEBUG)
 endif()
-
-#### Release ####
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(-g -O3 -ffast-math -DNDEBUG)
 endif()
 
-#### Dependencies (CPL) ####
 include(FetchContent)
 
 if (EMSCRIPTEN)
@@ -109,9 +102,6 @@ if(TARGET glfw)
     target_compile_options(glfw PRIVATE -fno-sanitize=undefined)
 endif()
 
-
-#### Linking ####
-
 add_executable(${CMAKE_PROJECT_NAME}
     src/main.c
     src/chunk.c
@@ -121,7 +111,6 @@ add_executable(${CMAKE_PROJECT_NAME}
     src/textures.c
 )
 
-# OpenMP, pthread, GLFW, GLAD, STB & FT
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${stb_SOURCE_DIR})
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${enet_SOURCE_DIR}/include)
 
@@ -155,7 +144,6 @@ if (EMSCRIPTEN)
     target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
         "SHELL:--preload-file ${ASSETS_DIR}@/assets"
         "SHELL:--preload-file ${SHADERS_DIR}@/shaders"
-        # "SHELL:--preload-file ${SHADERS_CUSTOM_DIR}@/shaders_custom"
         "-sSTACK_SIZE=8mb"
 	    "-sMIN_WEBGL_VERSION=2"
 	    "-sMAX_WEBGL_VERSION=2"
