@@ -53,17 +53,12 @@ typedef struct {
     float timer;
 } mining_t;
 
-typedef struct {
-    stats_t stats;
-    inventory_t inventory;
-    physical_attribs_t attribs;
-    mining_t mining;
-} player_t;
-
-void player_init();
-void player_update(player_t *player, chunk_entry *chunks, block_data_t *block_data, item_drop_t **drops, 
-                   uint32_t left_most_chunk, uint32_t right_most_chunk, texture *inventory, texture *item_textures, texture *hotbar_arrow);
-uint32_t player_set_spawn_point(player_t *player, fnl_state *terrain);
-void player_draw(player_t *player);
-void player_draw_inventory(player_t *player, texture *inventory, texture *item_textures, texture *hotbar_arrow, font *f);
-void player_draw_ui(player_t *player, texture *hotbar, texture *hotbar_arrow, texture *item_textures, font *f);
+mining_t *player_get_mining_properties();
+stats_t *player_get_stats_properties();
+inventory_t *player_get_inventory_properties();
+physical_attribs_t *player_get_attribs_properties();
+void player_update(item_drop_t **drops);
+uint32_t player_set_spawn_point(fnl_state *terrain);
+void player_draw();
+void player_draw_inventory();
+void player_draw_ui();

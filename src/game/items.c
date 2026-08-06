@@ -1,4 +1,5 @@
 #include "items.h"
+#include "textures.h"
 
 item_data_t item_data[ITEM_TYPE_T_SIZE] = {
     {.placable = false},                                                // None
@@ -26,9 +27,13 @@ item_data_t item_data[ITEM_TYPE_T_SIZE] = {
     {.placable = true, .tex_path = ITEM_TEX_PATH "grass.png"},          // Grass
 };
 
-#pragma region item_update_drop() Helper
+item_data_t *items_get_item_data(item_type_t type) {
+    return &item_data[type];
+}
 
-void item_drop_item(item_drop_t *drop, item_type_t type, vec2f pos) {
+#pragma region items_update_drop() Helper
+
+void items_drop_item(item_drop_t *drop, item_type_t type, vec2f pos) {
     assert(drop);
     assert(type != ITEM_NONE);
 
@@ -44,7 +49,7 @@ void item_drop_item(item_drop_t *drop, item_type_t type, vec2f pos) {
     drop->timer = get_time();
 }
 
-void item_update_drop_collision(item_drop_t *drop, chunk_entry *chunks) {
+void items_update_drop_collision(item_drop_t *drop) {
     drop->vel.y += drop->gravity * get_dt();
     if (drop->vel.y > drop->max_fall_speed) {
         drop->vel.y = drop->max_fall_speed;
@@ -53,13 +58,13 @@ void item_update_drop_collision(item_drop_t *drop, chunk_entry *chunks) {
     drop->collider_pos.y += drop->vel.y * get_dt();
     drop->ground = false;
     int idx = (int)drop->collider_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
-    for (uint32_t t = 0; t < (*hm_get(chunks, idx))->tiles.renderer.count / 6; t++) {
-        if (!(*hm_get(chunks, idx))->tiles.renderer.collidable[t]) {
+    for (uint32_t t = 0; t < (*hm_get(chunk_get_chunkmap(), idx))->tiles.renderer.count / 6; t++) {
+        if (!(*hm_get(chunk_get_chunkmap(), idx))->tiles.renderer.collidable[t]) {
             continue;
         }
         vec2f tile_pos =
-            VEC2F((*hm_get(chunks, idx))->tiles.renderer.vertices[(size_t)t * 6].x,
-                  (*hm_get(chunks, idx))->tiles.renderer.vertices[(size_t)t * 6].y);
+            VEC2F((*hm_get(chunk_get_chunkmap(), idx))->tiles.renderer.vertices[(size_t)t * 6].x,
+                  (*hm_get(chunk_get_chunkmap(), idx))->tiles.renderer.vertices[(size_t)t * 6].y);
         if (drop->collider_pos.x + drop->size.x <= tile_pos.x) {
             continue;
         }
@@ -96,7 +101,7 @@ void item_update_drop_collision(item_drop_t *drop, chunk_entry *chunks) {
     }
 }
 
-void item_update_anim(item_drop_t *drop) {
+void items_update_anim(item_drop_t *drop) {
     float offset = 0.0f;
     if (drop->ground) {
         offset = sinf(get_time() * 2) * MAX_ANIM_OFFSET;
@@ -106,17 +111,15 @@ void item_update_anim(item_drop_t *drop) {
 
 #pragma endregion
 
-void item_update_drop(item_drop_t *drop, chunk_entry *chunks) {
+void items_update_drop(item_drop_t *drop) {
     assert(drop);
-    assert(chunks);
 
-    item_update_drop_collision(drop, chunks);
-    item_update_anim(drop);
+    items_update_drop_collision(drop);
+    items_update_anim(drop);
 }
 
-void item_draw_drop(item_drop_t *drop, texture *item_textures) {
+void items_draw_drop(item_drop_t *drop) {
     assert(drop);
-    assert(item_textures);
 
     color_t c = WHITE;
     if (get_time() >= drop->timer + ITEM_DROP_LIFETIME - 10.0f) {
@@ -124,5 +127,5 @@ void item_draw_drop(item_drop_t *drop, texture *item_textures) {
         float scale = dt / 10.0f;
         c.a = scale * 255.0f;
     }
-    draw_texture2D(&item_textures[drop->type], VEC2F(drop->pos.x, drop->pos.y), drop->size, c, NO_ROTATION);
+    draw_texture2D(textures_get_item_texture(drop->type), VEC2F(drop->pos.x, drop->pos.y), drop->size, c, NO_ROTATION);
 }

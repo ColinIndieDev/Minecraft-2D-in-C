@@ -2,10 +2,6 @@
 
 #include <cpl/cpl.h>
 
-#define EXTERN_BLOCKS_H_VARIABLES                   \
-                                                    \
-extern block_data_t block_data[BLOCK_TYPE_T_SIZE];
-
 typedef enum : uint8_t {
     BLOCK_GRASS_BLOCK = 0,
     BLOCK_DIRT,
@@ -37,3 +33,5 @@ typedef struct {
     bool unbreakable;
     bool passable;
 } block_data_t;
+
+block_data_t *blocks_get_block_data(block_type_t type);

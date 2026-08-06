@@ -1,10 +1,11 @@
 #pragma once
 
 #include "blocks.h"
-#include "noise.h"
+#include "../utils/fastnoiselite.h"
 
 #include <cpl/cpl.h>
 #include <cpstd/queue.h>
+#include <cpstd/hashmap.h>
 
 #define MAP_SIZE 10000
 #define BLOCK_SIZE 75
@@ -29,8 +30,6 @@
 
 #define CHUNK_GEN_THREADS 4
 
-#define EXTERN_CHUNK_H_VARIABLES extern pthread_cond_t chunk_gen_cond;
-
 typedef struct {
     vec2f pos;
     tilemap tiles;
@@ -54,12 +53,19 @@ typedef struct {
     chunk_t ***queue;
 } worker_data_t;
 
-void chunk_gen_seed(map_noise_t *map_noise);
-void chunk_gen_gl(chunk_t *c);
-void chunk_gen(chunk_t *c, map_noise_t *map_noise, block_data_t *block_data);
-void chunk_draw(chunk_t *c);
-void chunk_draw_passable(chunk_t *c);
+HM_CREATE_ENTRY(uint32_t, chunk_t *, chunk_entry)
 
-void chunk_init_threads(worker_data_t *data);
-void chunk_close_threads(worker_data_t *data);
-void *chunk_gen_loop(void *arg);
+chunk_entry *chunk_get_chunkmap();
+uint32_t chunk_get_leftmost_idx();
+uint32_t chunk_get_rightmost_idx();
+map_noise_t *chunk_get_map_noise();
+void chunk_gen_seed();
+void chunk_gen_init();
+void chunk_gen_gl(chunk_t *c);
+void chunk_gen(chunk_t *c);
+void chunk_calc_chunks_to_render();
+void chunk_gen_chunks_req();
+void chunk_draw_chunks();
+void chunk_draw_chunks_passable();
+void chunk_init_threads();
+void chunk_close_threads();

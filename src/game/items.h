@@ -5,10 +5,6 @@
 #include <cpstd/hashmap.h>
 #include <cpl/cpl.h>
 
-#define EXTERN_ITEMS_H_VARIABLES                \
-                                                \
-extern item_data_t item_data[ITEM_TYPE_T_SIZE];
-
 #define ITEM_DROP_LIFETIME (5 * 60)
 #define MAX_ANIM_OFFSET 10
 #define ITEM_TEX_PATH "assets/images/items/"
@@ -58,8 +54,7 @@ typedef struct {
     bool ground;
 } item_drop_t;
 
-HM_CREATE_ENTRY(uint32_t, chunk_t *, chunk_entry)
-
-void item_drop_item(item_drop_t *drop, item_type_t type, vec2f pos);
-void item_update_drop(item_drop_t *drop, chunk_entry *chunks);
-void item_draw_drop(item_drop_t *drop, texture *item_textures);
+item_data_t *items_get_item_data(item_type_t type);
+void items_drop_item(item_drop_t *drop, item_type_t type, vec2f pos);
+void items_update_drop(item_drop_t *drop);
+void items_draw_drop(item_drop_t *drop);

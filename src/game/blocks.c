@@ -23,3 +23,7 @@ block_data_t block_data[BLOCK_TYPE_T_SIZE] = {
     {.uv = VEC2F(3, 4), .base_mining_dt = 0.1f,   .unbreakable = false, .passable = true},  // Allium
     {.uv = VEC2F(4, 0), .base_mining_dt = 0.1f,   .unbreakable = false, .passable = true},  // Grass
 };
+
+block_data_t *blocks_get_block_data(block_type_t type) {
+    return &block_data[type];
+}

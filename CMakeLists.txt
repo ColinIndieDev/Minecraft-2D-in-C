@@ -104,11 +104,13 @@ endif()
 
 add_executable(${CMAKE_PROJECT_NAME}
     src/main.c
-    src/chunk.c
-    src/player.c
-    src/items.c
-    src/blocks.c
-    src/textures.c
+    src/core.c
+
+    src/game/chunk.c
+    src/game/player.c
+    src/game/items.c
+    src/game/blocks.c
+    src/game/textures.c
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${stb_SOURCE_DIR})
