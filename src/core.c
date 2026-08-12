@@ -1,3 +1,4 @@
+#include <cpl/cpl.h>
 #define CPL_IMPL
 #include "core.h"
 
@@ -30,9 +31,9 @@ void init_player() {
 void init() {
     pcg_rand_seed();
 #ifndef __EMSCRIPTEN__
-    window_init(800, 800, "Hello CPL", OPENGL_VER_3_3);
+    window_init(800, 800, "Hello CPL", OPENGL_3_3);
 #else
-    window_init(800, 800, "Hello CPL", OPENGL_VER_3_0);
+    window_init(800, 800, "Hello CPL", OPENGL_3_0);
 #endif
     enable_vsync(false);
 
@@ -79,7 +80,7 @@ void main_loop() {
     if (!vec2f_cmp(player_get_mining_properties()->block, VEC2F(-1, -1))) {
         draw_rect(player_get_mining_properties()->block,
                   VEC2F((get_time() - player_get_mining_properties()->timer) / player_get_mining_properties()->block_dt * BLOCK_SIZE, BLOCK_SIZE),
-                  RGBA(255, 255, 255, 125), 0);
+                  RGBA(255, 255, 255, 125), NO_ROTATION);
     }
 
     begin_draw(TEXTURE_2D_UNLIT, true);

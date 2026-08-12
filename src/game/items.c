@@ -71,10 +71,14 @@ void items_update_drop_collision(item_drop_t *drop) {
         if (drop->collider_pos.x >= tile_pos.x + BLOCK_SIZE) {
             continue;
         }
-        rect_collider drop_collider = {.pos = drop->collider_pos,
-                                       .size = drop->collider_size};
-        rect_collider tile_collider = {.pos = tile_pos,
-                                       .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)};
+        rect_collider_t drop_collider = {
+            .pos = drop->collider_pos,
+            .size = drop->collider_size
+        };
+        rect_collider_t tile_collider = {
+            .pos = tile_pos,
+            .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)
+        };
 
         if (check_collision_rects(drop_collider, tile_collider)) {
             if (drop->vel.y > 0) {
@@ -125,7 +129,7 @@ void items_draw_drop(item_drop_t *drop) {
     if (get_time() >= drop->timer + ITEM_DROP_LIFETIME - 10.0f) {
         float dt = drop->timer + ITEM_DROP_LIFETIME - get_time();
         float scale = dt / 10.0f;
-        c.a = scale * 255.0f;
+        c.a = (uint8_t)(scale * 255.0f);
     }
     draw_texture2D(textures_get_item_texture(drop->type), VEC2F(drop->pos.x, drop->pos.y), drop->size, c, NO_ROTATION);
 }

@@ -41,8 +41,8 @@ typedef struct {
 } physical_attribs_t;
 
 typedef struct {
-    tilemap icons_bg;
-    tilemap icons;
+    tilemap_t icons_bg;
+    tilemap_t icons;
     float health;
     float hunger;
 } stats_t;

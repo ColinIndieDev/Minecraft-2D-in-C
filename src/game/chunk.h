@@ -32,9 +32,9 @@
 
 typedef struct {
     vec2f pos;
-    tilemap tiles;
-    tilemap tiles_bg;
-    tilemap tiles_passable;
+    tilemap_t tiles;
+    tilemap_t tiles_bg;
+    tilemap_t tiles_passable;
     bool ready;
 } chunk_t;
 

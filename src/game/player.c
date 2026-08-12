@@ -190,7 +190,7 @@ int player_block_id_to_item_id(int block_id) {
 #pragma endregion
 
 void player_draw() {
-    draw_rect(attribs.pos, attribs.size, RED, 0);
+    draw_rect(attribs.pos, attribs.size, RED, NO_ROTATION);
 }
 
 // If tilemap texture gets bigger, it is more vulnerable to cumbersome precision
@@ -315,7 +315,7 @@ bool player_neighbor_blocks_exist(vec2f mouse_pos_tilemap, uint32_t idx) {
 
 #pragma region player_handle_block_placing() Helper
 
-bool player_can_place_block(rect_collider player_collider, rect_collider tile_collider, vec2f mouse_pos_tilemap, uint32_t idx, int block_id) {
+bool player_can_place_block(rect_collider_t player_collider, rect_collider_t tile_collider, vec2f mouse_pos_tilemap, uint32_t idx, int block_id) {
     return !check_collision_rects(player_collider, tile_collider) && 
            !tilemap_tile_exists(&(*hm_get(chunk_get_chunkmap(), idx))->tiles, mouse_pos_tilemap) &&
            player_neighbor_blocks_exist(mouse_pos_tilemap, idx) && block_id != -1 && inventory.hotbar[inventory.hotbar_selected].count > 0;
@@ -333,11 +333,11 @@ void player_handle_block_placing(vec2f mouse_pos, vec2f mouse_pos_tilemap) {
             return;
         }
         uint32_t idx = (uint32_t)mouse_pos.x / (CHUNK_SIZE * BLOCK_SIZE);
-        rect_collider player_collider = {
+        rect_collider_t player_collider = {
             .pos = attribs.pos,
             .size = attribs.size
         };
-        rect_collider tile_collider = {
+        rect_collider_t tile_collider = {
             .pos = mouse_pos_tilemap,
             .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)
         };
@@ -474,11 +474,11 @@ void player_handle_item_drops(item_drop_t **drops, vec2f mouse_pos, vec2f mouse_
         uint32_t w = 0;
         for (uint32_t i = 0; i < vec_size(*drops); i++) {
             item_drop_t drop = (*drops)[i];
-            rect_collider drop_collider = {
+            rect_collider_t drop_collider = {
                 .pos = drop.pos, 
                 .size = drop.size
             };
-            rect_collider player_collider = {
+            rect_collider_t player_collider = {
                 .pos = attribs.pos,
                 .size = attribs.size
             };
@@ -566,7 +566,7 @@ int player_get_slot() {
         for (int x = 0; x < 9; x++) {
             vec2f slot_pos = VEC2F(first_inventory_slot.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f) + ((18 * 4) * x),
                                     first_inventory_slot.y + ((18 * 4) * y));
-            rect_collider slot_collider = {
+            rect_collider_t slot_collider = {
                 .pos = slot_pos,
                 .size = item_size
             };
@@ -579,7 +579,7 @@ int player_get_slot() {
     vec2f first_hotbar_slot = VEC2F(pos.x + (4 * 4), pos.y + size.y - (24 * 4));
     for (int i = 0; i < 9; i++) {
         vec2f slot_pos = VEC2F(first_hotbar_slot.x + (arrow_size.x * 0.5f) - (item_size.x * 0.5f) + ((18 * 4) * i), first_hotbar_slot.y);
-        rect_collider slot_collider = {
+        rect_collider_t slot_collider = {
             .pos = slot_pos,
             .size = item_size
         };
@@ -753,11 +753,11 @@ void player_move_and_collide() {
                 continue;
             }
 
-            rect_collider player_collider = {
+            rect_collider_t player_collider = {
                 .pos = attribs.pos, 
                 .size = attribs.size
             };
-            rect_collider tile_collider = {
+            rect_collider_t tile_collider = {
                 .pos = tile_pos, 
                 .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)
             };
@@ -802,10 +802,10 @@ void player_move_and_collide() {
                 continue;
             }
 
-            rect_collider player_collider = {
+            rect_collider_t player_collider = {
                 .pos = attribs.pos, .size = attribs.size
             };
-            rect_collider tile_collider = {
+            rect_collider_t tile_collider = {
                 .pos = tile_pos, .size = VEC2F(BLOCK_SIZE, BLOCK_SIZE)
             };
 
@@ -846,10 +846,10 @@ uint32_t player_set_spawn_point(fnl_state *terrain) {
 
 void player_draw_inventory() {
     if (inventory.enabled) {
-        texture *inventory_texture = textures_get_ui_texture(TEXTURE_INVENTORY);
-        texture *hotbar_arrow = textures_get_ui_texture(TEXTURE_HOTBAR_ARROW);
+        texture_t *inventory_texture = textures_get_ui_texture(TEXTURE_INVENTORY);
+        texture_t *hotbar_arrow = textures_get_ui_texture(TEXTURE_HOTBAR_ARROW);
         begin_draw(SHAPE_2D_UNLIT, false);
-        draw_rect(VEC2F(0, 0), get_screen_size(), RGBA(0, 0, 0, 125), 0);
+        draw_rect(VEC2F(0, 0), get_screen_size(), RGBA(0, 0, 0, 125), NO_ROTATION);
         begin_draw(TEXTURE_2D_UNLIT, false);
         vec2f size = VEC2F(inventory_texture->size.x * 4, inventory_texture->size.y * 4);
         vec2f pos = VEC2F((get_screen_width() * 0.5f) - (size.x * 0.5f), (get_screen_height() * 0.5f) - (size.y * 0.5f));
@@ -935,8 +935,8 @@ void player_draw_inventory() {
 
 void player_draw_ui() {
     if (!inventory.enabled) {
-        texture *hotbar = textures_get_ui_texture(TEXTURE_HOTBAR);
-        texture *hotbar_arrow = textures_get_ui_texture(TEXTURE_HOTBAR_ARROW);
+        texture_t *hotbar = textures_get_ui_texture(TEXTURE_HOTBAR);
+        texture_t *hotbar_arrow = textures_get_ui_texture(TEXTURE_HOTBAR_ARROW);
 
         begin_draw(TEXTURE_2D_UNLIT, false);
 

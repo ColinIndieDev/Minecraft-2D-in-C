@@ -13,6 +13,6 @@ typedef enum : uint8_t {
 } texture_type_t;
 
 void textures_load_resources();
-texture *textures_get_item_texture(item_type_t type);
-texture *textures_get_ui_texture(texture_type_t type);
-font *textures_get_font();
+texture_t *textures_get_item_texture(item_type_t type);
+texture_t *textures_get_ui_texture(texture_type_t type);
+font_t *textures_get_font();
