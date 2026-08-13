@@ -1,4 +1,3 @@
-#include <cpl/cpl.h>
 #define CPL_IMPL
 #include "core.h"
 

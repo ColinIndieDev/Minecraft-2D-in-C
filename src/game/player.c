@@ -487,22 +487,45 @@ void player_handle_item_drops(item_drop_t **drops, vec2f mouse_pos, vec2f mouse_
                 (*drops)[w++] = (*drops)[i];
             } else {
                 bool item_picked_up = false;
+                // Hotbar pickup add to stack
                 for (uint32_t j = 0; j < 9; j++) {
                     item_type_t type = drop.type;
-                    if (inventory.hotbar[j].item == type &&
-                        inventory.hotbar[j].count < MAX_STACK_SIZE) {
+                    if (inventory.hotbar[j].item == type && inventory.hotbar[j].count < MAX_STACK_SIZE) {
                         inventory.hotbar[j].count++;
                         item_picked_up = true;
                         break;
                     }
                 }
+                // Inventory pickup add to stack
+                if (!item_picked_up) {
+                    for (int j = MAX_INVENTORY_SLOTS; j >= 0; j--) {
+                        item_type_t type = drop.type;
+                        if (inventory.slots[j].item == type && inventory.slots[j].count < MAX_STACK_SIZE) {
+                            inventory.slots[j].count++;
+                            item_picked_up = true;
+                            break;
+                        } 
+                    }
+                }
+                // Hotbar pickup as new stack
                 if (!item_picked_up) {
                     for (uint32_t j = 0; j < 9; j++) {
                         item_type_t type = drop.type;
-                        if (inventory.hotbar[j].item == ITEM_NONE &&
-                            inventory.hotbar[j].count == 0) {
+                        if (inventory.hotbar[j].item == ITEM_NONE && inventory.hotbar[j].count == 0) {
                             inventory.hotbar[j].item = type;
                             inventory.hotbar[j].count++;
+                            item_picked_up = true;
+                            break;
+                        }
+                    }
+                }
+                // Inventory pickup as new stack
+                if (!item_picked_up) {
+                    for (int j = MAX_INVENTORY_SLOTS; j >= 0; j--) {
+                        item_type_t type = drop.type;
+                        if (inventory.slots[j].item == ITEM_NONE && inventory.slots[j].count == 0) {
+                            inventory.slots[j].item = type;
+                            inventory.slots[j].count++;
                             item_picked_up = true;
                             break;
                         }
@@ -523,6 +546,15 @@ void player_handle_item_drops(item_drop_t **drops, vec2f mouse_pos, vec2f mouse_
 }
 
 void player_handle_hotbar() {
+    if (get_mouse_scroll_offset().y > 0) {
+        inventory.hotbar_selected = (inventory.hotbar_selected + 1) % MAX_HOTBAR_SLOTS;
+    } else if (get_mouse_scroll_offset().y < 0) {
+        if (inventory.hotbar_selected == 0) {
+            inventory.hotbar_selected = MAX_HOTBAR_SLOTS - 1;
+        } else {
+            inventory.hotbar_selected--;
+        }
+    }
     if (is_key_down(KEY_DIGIT_1)) {
         inventory.hotbar_selected = 0;
     }
@@ -600,11 +632,68 @@ slot_t item_dragged = {
 
 void player_handle_inventory() {
     int slot_idx = player_get_slot();
+    // Pickup half of items in the slot
+    if (is_mouse_pressed(MOUSE_BUTTON_RIGHT) && slot_idx != -1 && slot_selected == -1) {
+        if (slot_idx >= 27) {
+            uint32_t half_count = inventory.hotbar[slot_idx - 27].count / 2;
+            if (half_count > 0) {
+                inventory.hotbar[slot_idx - 27].count -= half_count;
+                item_dragged.item = inventory.hotbar[slot_idx - 27].item;
+                item_dragged.count = half_count;
+                slot_selected = slot_idx;
+                // Huh never thought I will need it
+                goto _skip_put_single_item;
+            }
+        } else {
+            uint32_t half_count = inventory.slots[slot_idx].count / 2;
+            if (half_count > 0) {
+                inventory.slots[slot_idx].count -= half_count;
+                item_dragged.item = inventory.slots[slot_idx].item;
+                item_dragged.count = half_count;
+                slot_selected = slot_idx;
+                // Huh never thought I will need it
+                goto _skip_put_single_item;
+            }
+        }
+    }
+    // Put single item from dragged items into a slot
+    if (is_mouse_pressed(MOUSE_BUTTON_RIGHT) && slot_idx != -1 && slot_selected != -1 &&
+        item_dragged.item != ITEM_NONE && item_dragged.count > 0) {
+        if (slot_idx >= 27) {
+            if (inventory.hotbar[slot_idx - 27].count < 64) {
+                if (inventory.hotbar[slot_idx - 27].item == item_dragged.item) {
+                    inventory.hotbar[slot_idx - 27].count++;
+                    item_dragged.count--;
+                } else if (inventory.hotbar[slot_idx - 27].item == ITEM_NONE && inventory.hotbar[slot_idx - 27].count == 0) {
+                    inventory.hotbar[slot_idx - 27].item = item_dragged.item;
+                    inventory.hotbar[slot_idx - 27].count++;
+                    item_dragged.count--; 
+                }
+            }
+        } else {
+            if (inventory.slots[slot_idx].count < 64) {
+                if (inventory.slots[slot_idx].item == item_dragged.item) {
+                    inventory.slots[slot_idx].count++;
+                    item_dragged.count--;
+                } else if (inventory.slots[slot_idx].item == ITEM_NONE && inventory.slots[slot_idx].count == 0) {
+                    inventory.slots[slot_idx].item = item_dragged.item;
+                    inventory.slots[slot_idx].count++;
+                    item_dragged.count--; 
+                }
+            }
+        }
+
+        if (item_dragged.count == 0) {
+            item_dragged.item = ITEM_NONE;
+            slot_selected = -1;
+        }
+    }
+_skip_put_single_item:
+    // Pickup whole slot
     if (is_mouse_pressed(MOUSE_BUTTON_LEFT) && slot_idx != -1) {
         if (slot_selected != -1) {
             if (slot_idx >= 27) {
-                if (inventory.hotbar[slot_idx - 27].item == ITEM_NONE && 
-                    inventory.hotbar[slot_idx - 27].count == 0) {
+                if (inventory.hotbar[slot_idx - 27].item == ITEM_NONE && inventory.hotbar[slot_idx - 27].count == 0) {
                     inventory.hotbar[slot_idx - 27].item = item_dragged.item;
                     inventory.hotbar[slot_idx - 27].count = item_dragged.count;
                     item_dragged.item = ITEM_NONE;
@@ -634,8 +723,7 @@ void player_handle_inventory() {
                     }
                 }
             } else {
-                if (inventory.slots[slot_idx].item == ITEM_NONE && 
-                    inventory.slots[slot_idx].count == 0) {
+                if (inventory.slots[slot_idx].item == ITEM_NONE && inventory.slots[slot_idx].count == 0) {
                     inventory.slots[slot_idx].item = item_dragged.item;
                     inventory.slots[slot_idx].count = item_dragged.count;
                     item_dragged.item = ITEM_NONE;
